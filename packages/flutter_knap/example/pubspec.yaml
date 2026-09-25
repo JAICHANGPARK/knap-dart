@@ -1,0 +1,18 @@
+name: flutter_knap_example
+description: Demonstrates how to use the flutter_knap plugin.
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_knap:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
