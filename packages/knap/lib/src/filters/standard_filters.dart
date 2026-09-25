@@ -1,6 +1,54 @@
 import 'dart:convert';
 import 'filter.dart';
 
+List<String> _splitWords(String str) {
+  if (str.isEmpty) return [];
+  // Split on transition from lower to upper case or whitespace/dash/underscore
+  final parts = <String>[];
+  final regex = RegExp(r'[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z0-9])');
+  for (final match in regex.allMatches(str)) {
+    parts.add(match.group(0)!);
+  }
+  return parts;
+}
+
+DateTime? _parseDateTime(Object? val) {
+  if (val == null) return null;
+  if (val is DateTime) return val;
+  if (val is num) {
+    // If epoch seconds vs milliseconds
+    final intVal = val.toInt();
+    if (intVal < 10000000000) {
+      return DateTime.fromMillisecondsSinceEpoch(intVal * 1000);
+    }
+    return DateTime.fromMillisecondsSinceEpoch(intVal);
+  }
+  final str = val.toString().trim();
+  if (str.toLowerCase() == 'now' || str.toLowerCase() == 'today') {
+    return DateTime.now();
+  }
+  return DateTime.tryParse(str);
+}
+
+String _formatDate(DateTime dt, String format) {
+  final yyyy = dt.year.toString().padLeft(4, '0');
+  final yy = yyyy.substring(2);
+  final mm = dt.month.toString().padLeft(2, '0');
+  final dd = dt.day.toString().padLeft(2, '0');
+  final hh = dt.hour.toString().padLeft(2, '0');
+  final min = dt.minute.toString().padLeft(2, '0');
+  final ss = dt.second.toString().padLeft(2, '0');
+
+  return format
+      .replaceAll('YYYY', yyyy)
+      .replaceAll('YY', yy)
+      .replaceAll('MM', mm)
+      .replaceAll('DD', dd)
+      .replaceAll('HH', hh)
+      .replaceAll('mm', min)
+      .replaceAll('ss', ss);
+}
+
 final Map<String, KnapFilter> standardFilters = {
   // String filters
   'trim': (val, args) => val?.toString().trim() ?? '',
@@ -28,6 +76,27 @@ final Map<String, KnapFilter> standardFilters = {
         .replaceAll(RegExp(r'[\s_]+'), '-');
     return slug;
   },
+
+  // Case filters
+  'snake': (val, args) {
+    final words = _splitWords(val?.toString() ?? '');
+    return words.map((w) => w.toLowerCase()).join('_');
+  },
+  'camel': (val, args) {
+    final words = _splitWords(val?.toString() ?? '');
+    if (words.isEmpty) return '';
+    return words.first.toLowerCase() +
+        words.skip(1).map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase()).join('');
+  },
+  'kebab': (val, args) {
+    final words = _splitWords(val?.toString() ?? '');
+    return words.map((w) => w.toLowerCase()).join('-');
+  },
+  'pascal': (val, args) {
+    final words = _splitWords(val?.toString() ?? '');
+    return words.map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase()).join('');
+  },
+
   'replace': (val, args) {
     final str = val?.toString() ?? '';
     if (args.isEmpty) return str;
@@ -117,6 +186,44 @@ final Map<String, KnapFilter> standardFilters = {
     }
     return val;
   },
+  'unique': (val, args) {
+    if (val is Iterable) {
+      return val.toSet().toList();
+    }
+    return val;
+  },
+  'merge': (val, args) {
+    if (args.isEmpty) return val;
+    final other = args[0];
+    if (val is List) {
+      final res = List<Object?>.from(val);
+      if (other is Iterable) {
+        res.addAll(other);
+      } else if (other != null) {
+        res.add(other);
+      }
+      return res;
+    }
+    if (val is Map && other is Map) {
+      return {...val, ...other};
+    }
+    return val;
+  },
+  'yaml': (val, args) {
+    if (val == null) return 'null';
+    final str = val.toString();
+    if (str.isEmpty) return "''";
+    if (RegExp(r'[:#\[\]{}&*!|>"%@`]|\n').hasMatch(str) ||
+        str.startsWith(' ') ||
+        str.endsWith(' ')) {
+      return jsonEncode(str);
+    }
+    return str;
+  },
+  'hard_break': (val, args) {
+    final str = val?.toString() ?? '';
+    return str.replaceAll('\n', '  \n');
+  },
   'json': (val, args) {
     try {
       const encoder = JsonEncoder.withIndent('  ');
@@ -124,5 +231,56 @@ final Map<String, KnapFilter> standardFilters = {
     } catch (_) {
       return val?.toString() ?? '';
     }
+  },
+
+  // Date filters
+  'date': (val, args) {
+    final dt = _parseDateTime(val);
+    if (dt == null) return val?.toString() ?? '';
+    final format = args.isNotEmpty ? args[0]?.toString() ?? 'YYYY-MM-DD' : 'YYYY-MM-DD';
+    return _formatDate(dt, format);
+  },
+  'date_modify': (val, args) {
+    final dt = _parseDateTime(val);
+    if (dt == null || args.isEmpty) return val?.toString() ?? '';
+
+    final modifier = args[0]?.toString().trim() ?? '';
+    final match = RegExp(r'^([+-]?\d+)\s*(year|month|week|day|hour|minute|second)s?$', caseSensitive: false)
+        .firstMatch(modifier);
+
+    if (match == null) return _formatDate(dt, 'YYYY-MM-DD');
+
+    final amount = int.tryParse(match.group(1)!) ?? 0;
+    final unit = match.group(2)!.toLowerCase();
+
+    DateTime modified;
+    switch (unit) {
+      case 'year':
+        modified = DateTime(dt.year + amount, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+        break;
+      case 'month':
+        modified = DateTime(dt.year, dt.month + amount, dt.day, dt.hour, dt.minute, dt.second);
+        break;
+      case 'week':
+        modified = dt.add(Duration(days: amount * 7));
+        break;
+      case 'day':
+        modified = dt.add(Duration(days: amount));
+        break;
+      case 'hour':
+        modified = dt.add(Duration(hours: amount));
+        break;
+      case 'minute':
+        modified = dt.add(Duration(minutes: amount));
+        break;
+      case 'second':
+        modified = dt.add(Duration(seconds: amount));
+        break;
+      default:
+        modified = dt;
+    }
+
+    final format = args.length > 1 ? args[1]?.toString() ?? 'YYYY-MM-DD' : 'YYYY-MM-DD';
+    return _formatDate(modified, format);
   },
 };

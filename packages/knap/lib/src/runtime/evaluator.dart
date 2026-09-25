@@ -70,6 +70,8 @@ class KnapEvaluator {
           final loopMeta = {
             'index': i + 1,
             'index0': i,
+            'revindex': length - i,
+            'revindex0': length - i - 1,
             'first': i == 0,
             'last': i == length - 1,
             'length': length,
@@ -83,6 +85,10 @@ class KnapEvaluator {
           buffer.write(evaluate(body));
           context.popScope();
         }
+
+      case SetNode(:final name, :final value):
+        final val = _evaluateExpression(value);
+        context.setVariable(name, val);
     }
   }
 
@@ -90,6 +96,9 @@ class KnapEvaluator {
     switch (expr) {
       case LiteralExpression(:final value):
         return value;
+
+      case ListLiteralExpression(:final elements):
+        return elements.map(_evaluateExpression).toList();
 
       case VariableExpression(:final name):
         return context.resolve(name);
@@ -202,6 +211,8 @@ class KnapEvaluator {
           final loopMeta = {
             'index': i + 1,
             'index0': i,
+            'revindex': length - i,
+            'revindex0': length - i - 1,
             'first': i == 0,
             'last': i == length - 1,
             'length': length,
@@ -215,6 +226,10 @@ class KnapEvaluator {
           buffer.write(await evaluateAsync(body));
           context.popScope();
         }
+
+      case SetNode(:final name, :final value):
+        final val = await _evaluateExpressionAsync(value);
+        context.setVariable(name, val);
     }
   }
 
@@ -222,6 +237,13 @@ class KnapEvaluator {
     switch (expr) {
       case LiteralExpression(:final value):
         return value;
+
+      case ListLiteralExpression(:final elements):
+        final list = <Object?>[];
+        for (final el in elements) {
+          list.add(await _evaluateExpressionAsync(el));
+        }
+        return list;
 
       case VariableExpression(:final name):
         return context.resolve(name);

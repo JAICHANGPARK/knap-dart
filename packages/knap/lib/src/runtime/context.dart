@@ -16,6 +16,10 @@ class KnapScope {
     }
     return null;
   }
+
+  void set(String name, Object? value) {
+    variables[name] = value;
+  }
 }
 
 class KnapContext {
@@ -27,6 +31,10 @@ class KnapContext {
     FilterRegistry? filterRegistry,
   })  : _currentScope = KnapScope(variables ?? {}),
         filterRegistry = filterRegistry ?? FilterRegistry();
+
+  void setVariable(String name, Object? value) {
+    _currentScope.set(name, value);
+  }
 
   void pushScope(Map<String, Object?> newVariables) {
     _currentScope = KnapScope(newVariables, _currentScope);

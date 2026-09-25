@@ -46,7 +46,8 @@ class KnapLexer {
 
   void _scanOutsideTag(List<Token> tokens) {
     while (!_isAtEnd()) {
-      if (_peek() == '{' && (_peekNext() == '{' || _peekNext() == '%')) {
+      if (_peek() == '{' &&
+          (_peekNext() == '{' || _peekNext() == '%' || _peekNext() == '#')) {
         break;
       }
       _advance();
@@ -115,6 +116,51 @@ class KnapLexer {
           trimLeft: trimLeft,
         ),
       );
+    } else if (_peek() == '{' && _peekNext() == '#') {
+      _advance(); // {
+      _advance(); // #
+      var trimLeft = false;
+      if (_peek() == '-') {
+        _advance();
+        trimLeft = true;
+      }
+      _scanComment(tokens, trimLeft);
+    }
+  }
+
+  void _scanComment(List<Token> tokens, bool trimLeft) {
+    if (trimLeft && tokens.isNotEmpty && tokens.last.type == TokenType.text) {
+      final last = tokens.last;
+      final trimmed = (last.literal as String).trimRight();
+      tokens[tokens.length - 1] = Token(
+        type: TokenType.text,
+        lexeme: trimmed,
+        literal: trimmed,
+        location: last.location,
+      );
+    }
+
+    var trimRight = false;
+    while (!_isAtEnd()) {
+      if (_peek() == '-' && _peekNext() == '#' && _peekAfter(2) == '}') {
+        _advance(); // -
+        _advance(); // #
+        _advance(); // }
+        trimRight = true;
+        break;
+      } else if (_peek() == '#' && _peekNext() == '}') {
+        _advance(); // #
+        _advance(); // }
+        break;
+      }
+      _advance();
+    }
+
+    if (trimRight) {
+      // Consume whitespace immediately following the comment
+      while (!_isAtEnd() && (_peek() == ' ' || _peek() == '\t' || _peek() == '\n' || _peek() == '\r')) {
+        _advance();
+      }
     }
   }
 
@@ -230,10 +276,7 @@ class KnapLexer {
         if (_match('=')) {
           _addToken(tokens, TokenType.operatorEqual);
         } else {
-          throw KnapSyntaxException(
-            "Unexpected character '=', did you mean '=='?",
-            SourceLocation(offset: _start, line: _line, column: _startColumn),
-          );
+          _addToken(tokens, TokenType.operatorAssign);
         }
         break;
       case '!':
@@ -463,9 +506,11 @@ class KnapLexer {
     return source[_current];
   }
 
-  String _peekNext() {
-    if (_current + 1 >= source.length) return '';
-    return source[_current + 1];
+  String _peekNext() => _peekAfter(1);
+
+  String _peekAfter(int n) {
+    if (_current + n >= source.length) return '';
+    return source[_current + n];
   }
 
   bool _isAtEnd() => _current >= source.length;
@@ -504,6 +549,7 @@ class KnapLexer {
     'for': TokenType.kwFor,
     'in': TokenType.kwIn,
     'endfor': TokenType.kwEndfor,
+    'set': TokenType.kwSet,
     'and': TokenType.kwAnd,
     'or': TokenType.kwOr,
     'not': TokenType.kwNot,

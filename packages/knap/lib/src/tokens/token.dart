@@ -36,6 +36,7 @@ enum TokenType {
   rightBracket, // ]
 
   // Operators
+  operatorAssign, // =
   operatorEqual, // ==
   operatorNotEqual, // !=
   operatorLess, // <
@@ -51,6 +52,7 @@ enum TokenType {
   kwFor,
   kwIn,
   kwEndfor,
+  kwSet,
   kwAnd,
   kwOr,
   kwNot,

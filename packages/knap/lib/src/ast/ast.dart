@@ -61,6 +61,16 @@ class ForNode extends KnapNode {
   String toString() => 'ForNode($variableName in $collection)';
 }
 
+class SetNode extends KnapNode {
+  final String name;
+  final Expression value;
+
+  const SetNode(this.name, this.value);
+
+  @override
+  String toString() => 'SetNode($name = $value)';
+}
+
 class FilterCall {
   final String name;
   final List<Expression> arguments;
@@ -85,6 +95,14 @@ class LiteralExpression extends Expression {
 
   @override
   String toString() => 'Literal($value)';
+}
+
+class ListLiteralExpression extends Expression {
+  final List<Expression> elements;
+  const ListLiteralExpression(this.elements);
+
+  @override
+  String toString() => '$elements';
 }
 
 class VariableExpression extends Expression {

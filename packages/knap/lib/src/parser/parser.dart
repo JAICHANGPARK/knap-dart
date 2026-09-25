@@ -75,6 +75,14 @@ class KnapParser {
       return _parseForBlock(tagStartToken);
     }
 
+    if (_match(TokenType.kwSet)) {
+      final nameToken = _consume(TokenType.identifier, 'Expected variable name after "set"');
+      _consume(TokenType.operatorAssign, 'Expected "=" after variable name in set tag');
+      final valueExpr = _parseExpression();
+      _consume(TokenType.tagEnd, 'Expected "%}" to close set tag', tagStartToken.location);
+      return SetNode(nameToken.lexeme, valueExpr);
+    }
+
     // Invalid tag inside general template flow
     final invalidTag = _peek();
     throw KnapSyntaxException(
@@ -281,6 +289,18 @@ class KnapParser {
       final expr = _parseExpression();
       _consume(TokenType.rightParen, 'Expected ")" after expression');
       return expr;
+    }
+    if (_match(TokenType.leftBracket)) {
+      final elements = <Expression>[];
+      if (!_check(TokenType.rightBracket)) {
+        elements.add(_parseExpression());
+        while (_match(TokenType.comma)) {
+          if (_check(TokenType.rightBracket)) break;
+          elements.add(_parseExpression());
+        }
+      }
+      _consume(TokenType.rightBracket, 'Expected "]" after list elements');
+      return ListLiteralExpression(elements);
     }
 
     throw KnapSyntaxException('Expected expression', _peek().location);
