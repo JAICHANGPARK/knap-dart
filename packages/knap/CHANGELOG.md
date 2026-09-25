@@ -1,0 +1,21 @@
+## 2026.9.25
+
+- Initial release of Knap for Dart.
+- **Security & Safety**: AST-based parser and interpreter with zero `eval` or arbitrary code execution.
+- **Markdown-first Templating**:
+  - Liquid/Jinja-compatible syntax (`{{ ... }}`, `{% ... %}`).
+  - Whitespace trimming control (`{{- -}}`, `{%- -%}`).
+  - Built-in Markdown filters: `wikilink`, `link`, `list`, `task_list`, `table`, `callout`, `quote`, `tag`, `codeblock`, `inline_code`, `bold`, `italic`, `strikethrough`, `escape_md`.
+- **Logic & Flow Control**:
+  - `if / elif / else` conditional branches.
+  - `for ... in ... else` iterations with loop metadata (`loop.index`, `loop.index0`, `loop.revindex`, `loop.revindex0`, `loop.first`, `loop.last`, `loop.length`).
+  - Variable assignment statements (`{% set name = expr %}`).
+  - Comment tags (`{# comment #}`, `{#- comment -#}`).
+- **Rich Standard Filters**:
+  - String manipulation: `trim`, `upper`, `lower`, `capitalize`, `title`, `slug`, `replace`, `truncate`, `default`.
+  - Case formatting: `snake`, `camel`, `kebab`, `pascal`.
+  - Collection helpers: `first`, `last`, `join`, `sort`, `reverse`, `slice`, `length`, `merge`, `unique`.
+  - Formatting & Data: `json`, `yaml`, `hard_break`.
+  - Date helpers: `date`, `date_modify`.
+- **Async Execution Support**: Synchronous (`render()`) and asynchronous (`renderAsync()`) evaluation with async custom filters.
+- **Built-in CLI**: Standalone command-line tool `dart run knap render`.

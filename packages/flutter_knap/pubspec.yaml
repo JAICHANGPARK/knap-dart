@@ -1,8 +1,16 @@
 name: flutter_knap
 description: Flutter widgets and real-time preview tools for the Knap template engine.
-version: 0.1.0
-publish_to: none
+version: 2026.9.25
+repository: https://github.com/JAICHANGPARK/knap-dart
+issue_tracker: https://github.com/JAICHANGPARK/knap-dart/issues
 resolution: workspace
+
+topics:
+  - markdown
+  - template
+  - flutter-widgets
+  - obsidian
+  - preview
 
 environment:
   sdk: ^3.5.0
@@ -12,8 +20,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_markdown: ^0.7.3
-  knap:
-    path: ../knap
+  knap: ^2026.9.25
 
 dev_dependencies:
   flutter_lints: ^4.0.0
