@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Analyze workspace
+        run: dart analyze --fatal-infos
+
+      - name: Run knap core tests
+        working-directory: packages/knap
+        run: dart test
+
+      - name: Run flutter_knap tests
+        working-directory: packages/flutter_knap
+        run: flutter test

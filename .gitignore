@@ -1,0 +1,23 @@
+# Files and directories created by pub
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# Conventional directory for build outputs
+build/
+
+# Directory created by dartdoc
+doc/api/
+
+# Avoid committing generated files
+*.g.dart
+*.freezed.dart
+
+# Mac desktop service store files
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.iml

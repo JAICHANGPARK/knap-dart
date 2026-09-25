@@ -1,0 +1,9 @@
+name: knap_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+workspace:
+  - packages/knap
+  - packages/flutter_knap
