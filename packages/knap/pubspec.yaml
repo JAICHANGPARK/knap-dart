@@ -1,7 +1,8 @@
 name: knap
 description: A safe, lightweight template engine for Markdown in Dart, inspired by Obsidian Knap.
 version: 0.1.0
-repository: https://github.com/obsidianmd/knap
+repository: https://github.com/JAICHANGPARK/knap-dart
+resolution: workspace
 
 environment:
   sdk: ^3.5.0

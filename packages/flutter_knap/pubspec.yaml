@@ -2,6 +2,7 @@ name: flutter_knap
 description: Flutter widgets and real-time preview tools for the Knap template engine.
 version: 0.1.0
 publish_to: none
+resolution: workspace
 
 environment:
   sdk: ^3.5.0
