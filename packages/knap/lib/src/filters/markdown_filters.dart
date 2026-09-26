@@ -207,4 +207,64 @@ final Map<String, KnapFilter> markdownFilters = {
         .replaceAll(RegExp(r'[\s_]+'), '-');
     return '#$slug';
   },
+
+  // Markdown Headings
+  'h1': (val, args) => '# ${val?.toString() ?? ''}',
+  'h2': (val, args) => '## ${val?.toString() ?? ''}',
+  'h3': (val, args) => '### ${val?.toString() ?? ''}',
+  'h4': (val, args) => '#### ${val?.toString() ?? ''}',
+  'h5': (val, args) => '##### ${val?.toString() ?? ''}',
+  'h6': (val, args) => '###### ${val?.toString() ?? ''}',
+
+  // Markdown Formatting & Inline
+  'strike': (val, args) => markdownFilters['strikethrough']!(val, args),
+  'highlight': (val, args) {
+    final str = val?.toString() ?? '';
+    if (str.isEmpty) return '';
+    final color = args.isNotEmpty ? args[0]?.toString().toLowerCase() : null;
+    final marker = switch (color) {
+      'red' => '🔴',
+      'orange' => '🟠',
+      'yellow' => '🟡',
+      'green' => '🟢',
+      'blue' => '🔵',
+      'purple' => '🟣',
+      _ => '',
+    };
+    return '==$marker$str==';
+  },
+  'hr': (val, args) {
+    final str = val?.toString() ?? '';
+    final pos = args.isNotEmpty ? args[0]?.toString().toLowerCase() : 'after';
+    if (pos == 'before') return '---\n\n$str';
+    if (pos == 'both') return '---\n\n$str\n\n---';
+    return str.isEmpty ? '---' : '$str\n\n---';
+  },
+  'code': (val, args) {
+    final str = val?.toString() ?? '';
+    final lang = args.isNotEmpty ? args[0]?.toString() : null;
+    if (lang != null || str.contains('\n')) {
+      return '```${lang ?? ''}\n$str\n```';
+    }
+    return '`$str`';
+  },
+  'code_block': (val, args) {
+    final str = val?.toString() ?? '';
+    final lang = args.isNotEmpty ? args[0]?.toString() ?? '' : '';
+    return '```$lang\n$str\n```';
+  },
+  'math': (val, args) {
+    final str = val?.toString() ?? '';
+    if (str.contains('\n')) return '\$\$\n$str\n\$\$';
+    return '\$$str\$';
+  },
+  'math_block': (val, args) {
+    final str = val?.toString() ?? '';
+    return '\$\$\n$str\n\$\$';
+  },
+  'comment': (val, args) {
+    final str = val?.toString() ?? '';
+    if (str.contains('\n')) return '%%\n$str\n%%';
+    return '%%$str%%';
+  },
 };

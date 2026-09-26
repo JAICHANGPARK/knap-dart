@@ -149,5 +149,56 @@ void main() {
       expect(result, contains('#header-name'));
       expect(result, contains('> Important text'));
     });
+
+    test('supports calc filter for arithmetic operations', () {
+      expect(knap.render('{{ 100 | calc:"+20" }}'), equals('120'));
+      expect(knap.render('{{ 100 | calc:"-30" }}'), equals('70'));
+      expect(knap.render('{{ 10 | calc:"*5" }}'), equals('50'));
+      expect(knap.render('{{ 50 | calc:"/2" }}'), equals('25'));
+      expect(knap.render('{{ 2 | calc:"^3" }}'), equals('8'));
+    });
+
+    test('supports nth filter (position, multiplier, offset, basis)', () {
+      final list = ['a', 'b', 'c', 'd', 'e', 'f'];
+      expect(knap.render('{{ list | nth:3 | join }}', data: {'list': list}), equals('c'));
+      expect(knap.render('{{ list | nth:"2n" | join:"" }}', data: {'list': list}), equals('bdf'));
+      expect(knap.render('{{ list | nth:"n+4" | join:"" }}', data: {'list': list}), equals('def'));
+      expect(knap.render('{{ list | nth:"1,3:4" | join:"" }}', data: {'list': list}), equals('ace'));
+    });
+
+    test('supports object and template filters', () {
+      final map = {'title': 'Knap', 'lang': 'Dart'};
+      expect(knap.render('{{ map | object:"keys" | join:"" }}', data: {'map': map}), equals('titlelang'));
+      expect(knap.render('{{ map | object:"values" | join:"" }}', data: {'map': map}), equals('KnapDart'));
+
+      final items = [
+        {'name': 'Alpha', 'code': 'A'},
+        {'name': 'Beta', 'code': 'B'},
+      ];
+      final res = knap.render('{{ items | template:"\${name}: \${code}" }}', data: {'items': items});
+      expect(res, equals('Alpha: A\n\nBeta: B'));
+    });
+
+    test('supports uncamel and unescape filters', () {
+      expect(knap.render('{{ "fooBarBaz" | uncamel }}'), equals('foo bar baz'));
+      expect(knap.render('{{ "\\\"hello\\\\nworld\\\"" | unescape }}'), equals('"hello\nworld"'));
+    });
+
+    test('supports HTML attribute filters: strip_attr, remove_attr, replace_tags', () {
+      const html = '<div class="box" id="main" style="color:red">Content</div>';
+      expect(knap.render('{{ html | strip_attr:"id" }}', data: {'html': html}), equals('<div id="main">Content</div>'));
+      expect(knap.render('{{ html | remove_attr:"style" }}', data: {'html': html}), equals('<div class="box" id="main">Content</div>'));
+      expect(knap.render('{{ html | replace_tags:"div":"section" }}', data: {'html': html}), equals('<section class="box" id="main" style="color:red">Content</section>'));
+    });
+
+    test('supports markdown headings, highlight, math, hr, comment', () {
+      expect(knap.render('{{ "Title" | h1 }}'), equals('# Title'));
+      expect(knap.render('{{ "Sub" | h2 }}'), equals('## Sub'));
+      expect(knap.render('{{ "Notice" | highlight }}'), equals('==Notice=='));
+      expect(knap.render('{{ "Warning" | highlight:"red" }}'), equals('==🔴Warning=='));
+      expect(knap.render('{{ "E=mc^2" | math }}'), equals(r'$E=mc^2$'));
+      expect(knap.render('{{ "Hidden note" | comment }}'), equals('%%Hidden note%%'));
+      expect(knap.render('{{ "Above" | hr }}'), equals('Above\n\n---'));
+    });
   });
 }
