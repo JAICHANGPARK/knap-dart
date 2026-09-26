@@ -161,4 +161,50 @@ final Map<String, KnapFilter> markdownFilters = {
       (match) => '\\${match.group(1)}',
     );
   },
+  'blockquote': (val, args) => markdownFilters['quote']!(val, args),
+  'strip_md': (val, args) {
+    var str = val?.toString() ?? '';
+    if (str.isEmpty) return '';
+    // Strip fenced code blocks
+    str = str.replaceAll(RegExp(r'```[\s\S]*?```'), '');
+    // Strip inline code
+    str = str.replaceAllMapped(RegExp(r'`([^`]+)`'), (m) => m.group(1)!);
+    // Images ![alt](url) -> alt
+    str = str.replaceAllMapped(RegExp(r'!\[([^\]]*)\]\([^)]+\)'), (m) => m.group(1)!);
+    // Links [text](url) -> text
+    str = str.replaceAllMapped(RegExp(r'\[([^\]]+)\]\([^)]+\)'), (m) => m.group(1)!);
+    // Wikilinks [[target|alias]] -> alias or target
+    str = str.replaceAllMapped(RegExp(r'\[\[(?:[^|\]]+\|)?([^\]]+)\]\]'), (m) => m.group(1)!);
+    // Headers (# Header)
+    str = str.replaceAll(RegExp(r'^#{1,6}\s+', multiLine: true), '');
+    // Blockquotes (> text)
+    str = str.replaceAll(RegExp(r'^>\s?', multiLine: true), '');
+    // Lists (- / * / 1. )
+    str = str.replaceAll(RegExp(r'^\s*([-*+]|\d+\.)\s+', multiLine: true), '');
+    // Bold / italic (***, **, *, ___, __, _)
+    str = str.replaceAllMapped(RegExp(r'(\*{1,3}|_{1,3})([^*_]+)\1'), (m) => m.group(2)!);
+    // Strikethrough ~~text~~
+    str = str.replaceAllMapped(RegExp(r'~~([^~]+)~~'), (m) => m.group(1)!);
+    return str.trim();
+  },
+  'image': (val, args) {
+    final url = val?.toString().trim() ?? '';
+    if (url.isEmpty) return '';
+    final alt = args.isNotEmpty ? args[0]?.toString() ?? '' : '';
+    return '![$alt]($url)';
+  },
+  'footnote': (val, args) {
+    final id = val?.toString().trim() ?? '';
+    if (id.isEmpty) return '';
+    return '[^$id]';
+  },
+  'fragment_link': (val, args) {
+    final str = val?.toString().trim() ?? '';
+    if (str.isEmpty) return '';
+    final slug = str
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s_-]'), '')
+        .replaceAll(RegExp(r'[\s_]+'), '-');
+    return '#$slug';
+  },
 };

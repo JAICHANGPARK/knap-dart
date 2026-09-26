@@ -43,6 +43,7 @@ enum TokenType {
   operatorLessEqual, // <=
   operatorGreater, // >
   operatorGreaterEqual, // >=
+  operatorNullCoalescing, // ??
 
   // Keywords
   kwIf,
@@ -56,6 +57,7 @@ enum TokenType {
   kwAnd,
   kwOr,
   kwNot,
+  kwContains,
 
   eof,
 }

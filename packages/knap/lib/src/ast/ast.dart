@@ -148,6 +148,8 @@ class UnaryOpExpression extends Expression {
 enum BinaryOperator {
   and,
   or,
+  nullCoalescing,
+  contains,
   equal,
   notEqual,
   less,

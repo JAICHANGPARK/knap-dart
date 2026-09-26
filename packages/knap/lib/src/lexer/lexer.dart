@@ -300,6 +300,16 @@ class KnapLexer {
               : TokenType.operatorGreater,
         );
         break;
+      case '?':
+        if (_match('?')) {
+          _addToken(tokens, TokenType.operatorNullCoalescing);
+        } else {
+          throw KnapSyntaxException(
+            'Unexpected character: ?',
+            SourceLocation(offset: _start, line: _line, column: _startColumn),
+          );
+        }
+        break;
       case '"':
       case "'":
         _scanString(tokens, c);
@@ -544,6 +554,7 @@ class KnapLexer {
   static const Map<String, TokenType> _keywords = {
     'if': TokenType.kwIf,
     'elif': TokenType.kwElif,
+    'elseif': TokenType.kwElif,
     'else': TokenType.kwElse,
     'endif': TokenType.kwEndif,
     'for': TokenType.kwFor,
@@ -553,6 +564,7 @@ class KnapLexer {
     'and': TokenType.kwAnd,
     'or': TokenType.kwOr,
     'not': TokenType.kwNot,
+    'contains': TokenType.kwContains,
     'true': TokenType.boolean,
     'false': TokenType.boolean,
     'null': TokenType.nullLiteral,

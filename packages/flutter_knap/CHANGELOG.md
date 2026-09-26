@@ -1,3 +1,8 @@
+## 2026.9.26
+
+- Updated dependency to `knap ^2026.9.26`.
+- Support for new operators (`??`, `contains`, `elseif`), multi-word attributes, and 15+ new built-in filters.
+
 ## 2026.9.25
 
 - Initial release of Flutter widgets for the Knap template engine.

@@ -283,4 +283,150 @@ final Map<String, KnapFilter> standardFilters = {
     final format = args.length > 1 ? args[1]?.toString() ?? 'YYYY-MM-DD' : 'YYYY-MM-DD';
     return _formatDate(modified, format);
   },
+
+  // Additional String / System Filters
+  'split': (val, args) {
+    final str = val?.toString() ?? '';
+    final delimiter = args.isNotEmpty ? args[0]?.toString() ?? ',' : ',';
+    return str.split(delimiter);
+  },
+  'indent': (val, args) {
+    final str = val?.toString() ?? '';
+    final width = args.isNotEmpty && args[0] is num ? (args[0] as num).toInt() : 2;
+    final indentStr = ' ' * width;
+    return str.split('\n').map((line) => line.isEmpty ? line : '$indentStr$line').join('\n');
+  },
+  'encode_uri': (val, args) => Uri.encodeComponent(val?.toString() ?? ''),
+  'decode_uri': (val, args) => Uri.decodeComponent(val?.toString() ?? ''),
+  'safe_name': (val, args) {
+    final str = val?.toString() ?? '';
+    final replacement = args.isNotEmpty ? args[0]?.toString() ?? '' : '';
+    return str.replaceAll(RegExp(r'[/\\?%*:|"<>#^\[\]]'), replacement).trim();
+  },
+  'strip_tags': (val, args) {
+    final str = val?.toString() ?? '';
+    if (str.isEmpty) return '';
+    return str
+        .replaceAll(RegExp(r'<!--[\s\S]*?-->'), '')
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&apos;', "'")
+        .trim();
+  },
+  'remove_html': (val, args) => standardFilters['strip_tags']!(val, args),
+  'remove_tags': (val, args) => standardFilters['strip_tags']!(val, args),
+
+  // Additional Collection Filters
+  'where': (val, args) {
+    if (val is! Iterable || args.isEmpty) return val;
+    final key = args[0]?.toString() ?? '';
+    final hasExpected = args.length > 1;
+    final expected = hasExpected ? args[1] : null;
+
+    return val.where((item) {
+      if (item is Map) {
+        final itemVal = item[key];
+        if (hasExpected) {
+          if (expected == null) return itemVal == null;
+          return itemVal?.toString() == expected.toString();
+        }
+        return itemVal != null && itemVal != false && itemVal != '';
+      }
+      return false;
+    }).toList();
+  },
+  'map': (val, args) {
+    if (val is! Iterable || args.isEmpty) return val;
+    final key = args[0]?.toString() ?? '';
+    return val.map((item) {
+      if (item is Map) {
+        return item[key];
+      }
+      return null;
+    }).toList();
+  },
+  'compact': (val, args) {
+    if (val is! Iterable) return val;
+    return val.where((e) => e != null && e != '' && e != false).toList();
+  },
+
+  // Math & Number Filters
+  'sum': (val, args) {
+    if (val is! Iterable) return 0;
+    num total = 0;
+    for (final item in val) {
+      if (item is num) {
+        total += item;
+      } else if (item != null) {
+        final parsed = num.tryParse(item.toString());
+        if (parsed != null) total += parsed;
+      }
+    }
+    if (total == total.toInt()) {
+      return total.toInt();
+    }
+    return total;
+  },
+  'round': (val, args) {
+    if (val == null) return 0;
+    final number = val is num ? val.toDouble() : double.tryParse(val.toString());
+    if (number == null) return val;
+    final decimals = args.isNotEmpty && args[0] is num ? (args[0] as num).toInt() : 0;
+    if (decimals <= 0) {
+      return number.round();
+    }
+    return double.parse(number.toStringAsFixed(decimals));
+  },
+  'number_format': (val, args) {
+    if (val == null) return '';
+    final numVal = val is num ? val : num.tryParse(val.toString());
+    if (numVal == null) return val.toString();
+    final decimals = args.isNotEmpty && args[0] is num ? (args[0] as num).toInt() : null;
+
+    String str;
+    if (decimals != null) {
+      str = numVal.toStringAsFixed(decimals);
+    } else {
+      str = numVal.toString();
+    }
+    final parts = str.split('.');
+    final intPart = parts[0].replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (match) => ',',
+    );
+    if (parts.length > 1) {
+      return '$intPart.${parts[1]}';
+    }
+    return intPart;
+  },
+
+  // Duration & JSON Filters
+  'duration': (val, args) {
+    if (val == null) return '';
+    final numVal = val is num ? val.toDouble() : double.tryParse(val.toString());
+    if (numVal == null) return val.toString();
+    final unit = args.isNotEmpty ? args[0]?.toString().toLowerCase() : 's';
+    final totalSeconds = (unit == 'ms' ? numVal / 1000 : numVal).round();
+    if (totalSeconds < 60) return '${totalSeconds}s';
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return '${hours}h ${minutes}m${seconds > 0 ? ' ${seconds}s' : ''}';
+    }
+    return '${minutes}m${seconds > 0 ? ' ${seconds}s' : ''}';
+  },
+  'parse_json': (val, args) {
+    if (val == null) return null;
+    try {
+      return jsonDecode(val.toString());
+    } catch (_) {
+      return null;
+    }
+  },
 };

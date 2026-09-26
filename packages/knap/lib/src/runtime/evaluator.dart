@@ -122,6 +122,10 @@ class KnapEvaluator {
       case BinaryOpExpression(:final operator, :final left, :final right):
         final leftVal = _evaluateExpression(left);
         switch (operator) {
+          case BinaryOperator.nullCoalescing:
+            return leftVal ?? _evaluateExpression(right);
+          case BinaryOperator.contains:
+            return _evaluateContains(leftVal, _evaluateExpression(right));
           case BinaryOperator.or:
             return context.isTruthy(leftVal) ? leftVal : _evaluateExpression(right);
           case BinaryOperator.and:
@@ -267,6 +271,11 @@ class KnapEvaluator {
       case BinaryOpExpression(:final operator, :final left, :final right):
         final leftVal = await _evaluateExpressionAsync(left);
         switch (operator) {
+          case BinaryOperator.nullCoalescing:
+            return leftVal ?? await _evaluateExpressionAsync(right);
+          case BinaryOperator.contains:
+            final rightVal = await _evaluateExpressionAsync(right);
+            return _evaluateContains(leftVal, rightVal);
           case BinaryOperator.or:
             return context.isTruthy(leftVal)
                 ? leftVal
@@ -294,6 +303,30 @@ class KnapEvaluator {
   // ----------------------------------------------------------------------
   // Utilities
   // ----------------------------------------------------------------------
+
+  bool _evaluateContains(Object? container, Object? item) {
+    if (container == null) return false;
+
+    if (container is String) {
+      final search = item?.toString() ?? '';
+      return container.contains(search);
+    }
+
+    if (container is Iterable) {
+      for (final el in container) {
+        if (_areEqual(el, item)) return true;
+      }
+      return false;
+    }
+
+    if (container is Map) {
+      final key = item?.toString();
+      if (container.containsKey(key)) return true;
+      return container.keys.any((k) => _areEqual(k, item));
+    }
+
+    return false;
+  }
 
   List<Object?> _toList(Object? val) {
     if (val == null) return const [];

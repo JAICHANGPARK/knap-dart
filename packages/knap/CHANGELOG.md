@@ -1,3 +1,18 @@
+## 2026.9.26
+
+- **Upstream Parity & Operators**:
+  - Added null coalescing operator `??` (`{{ title ?? fallback }}`).
+  - Added `contains` operator for Lists, Strings, and Maps (`{% if tags contains "dart" %}`).
+  - Added `elseif` keyword as alias for `elif`.
+  - Added multi-word identifier support for Clipper attributes (e.g. `{{ First name | upper }}`).
+  - Added colon-chained argument support for filters (e.g. `replace:"old":"new"`).
+- **New Built-in Filters**:
+  - Web Clipper & Filesystem: `safe_name`, `strip_tags` (`remove_html`, `remove_tags`).
+  - Markdown: `strip_md`, `blockquote`, `image`, `footnote`, `fragment_link`.
+  - Collections: `where`, `map`, `compact`, `split`.
+  - Math & Numbers: `sum`, `round`, `number_format`.
+  - Utilities: `duration`, `indent`, `encode_uri`, `decode_uri`, `parse_json`.
+
 ## 2026.9.25
 
 - Initial release of Knap for Dart.

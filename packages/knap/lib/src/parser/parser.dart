@@ -53,7 +53,7 @@ class KnapParser {
       final args = <Expression>[];
       if (_match(TokenType.colon)) {
         args.add(_parseExpression());
-        while (_match(TokenType.comma)) {
+        while (_matchAny([TokenType.comma, TokenType.colon])) {
           args.add(_parseExpression());
         }
       }
@@ -185,7 +185,16 @@ class KnapParser {
   // Expression Parsing (Precedence)
   // ----------------------------------------------------
 
-  Expression _parseExpression() => _parseOr();
+  Expression _parseExpression() => _parseNullCoalescing();
+
+  Expression _parseNullCoalescing() {
+    var expr = _parseOr();
+    while (_match(TokenType.operatorNullCoalescing)) {
+      final right = _parseOr();
+      expr = BinaryOpExpression(BinaryOperator.nullCoalescing, expr, right);
+    }
+    return expr;
+  }
 
   Expression _parseOr() {
     var expr = _parseAnd();
@@ -224,6 +233,7 @@ class KnapParser {
       TokenType.operatorLessEqual,
       TokenType.operatorGreater,
       TokenType.operatorGreaterEqual,
+      TokenType.kwContains,
     ])) {
       final opType = _previous().type;
       final op = switch (opType) {
@@ -231,6 +241,7 @@ class KnapParser {
         TokenType.operatorLessEqual => BinaryOperator.lessEqual,
         TokenType.operatorGreater => BinaryOperator.greater,
         TokenType.operatorGreaterEqual => BinaryOperator.greaterEqual,
+        TokenType.kwContains => BinaryOperator.contains,
         _ => throw StateError('Unreachable comparison operator: $opType'),
       };
       final right = _parseUnary();
@@ -283,7 +294,11 @@ class KnapParser {
       return LiteralExpression(_previous().literal);
     }
     if (_match(TokenType.identifier)) {
-      return VariableExpression(_previous().lexeme);
+      var name = _previous().lexeme;
+      while (_check(TokenType.identifier)) {
+        name += ' ${_advance().lexeme}';
+      }
+      return VariableExpression(name);
     }
     if (_match(TokenType.leftParen)) {
       final expr = _parseExpression();
