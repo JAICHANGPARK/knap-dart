@@ -2,12 +2,16 @@ import '../ast/ast.dart';
 import '../errors/exceptions.dart';
 import '../tokens/token.dart';
 
+/// A recursive descent parser that converts a stream of [Token]s into an abstract syntax tree of [KnapNode]s.
 class KnapParser {
+  /// The scanned token stream to parse.
   final List<Token> tokens;
   int _current = 0;
 
+  /// Creates a [KnapParser] over [tokens].
   KnapParser(this.tokens);
 
+  /// Parses the entire token stream and returns the root list of AST [KnapNode]s.
   List<KnapNode> parse() {
     final nodes = <KnapNode>[];
     while (!_isAtEnd()) {
@@ -30,11 +34,6 @@ class KnapParser {
 
     if (_match(TokenType.tagStart)) {
       return _parseTagNode();
-    }
-
-    if (_peek().type == TokenType.eof) {
-      _advance();
-      return null;
     }
 
     throw KnapSyntaxException('Unexpected token: ${_peek().lexeme}', _peek().location);
@@ -242,7 +241,7 @@ class KnapParser {
         TokenType.operatorGreater => BinaryOperator.greater,
         TokenType.operatorGreaterEqual => BinaryOperator.greaterEqual,
         TokenType.kwContains => BinaryOperator.contains,
-        _ => throw StateError('Unreachable comparison operator: $opType'),
+        _ => throw StateError('Unreachable comparison operator: $opType'), // coverage:ignore-line
       };
       final right = _parseUnary();
       expr = BinaryOpExpression(op, expr, right);

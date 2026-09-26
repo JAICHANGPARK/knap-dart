@@ -50,6 +50,7 @@ String _formatDate(DateTime dt, String format) {
       .replaceAll('ss', ss);
 }
 
+/// The built-in library of standard string, collection, math, date, and utility filters.
 final Map<String, KnapFilter> standardFilters = {
   // String filters
   'trim': (val, args) => val?.toString().trim() ?? '',

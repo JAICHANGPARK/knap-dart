@@ -10,6 +10,9 @@ build/
 # Directory created by dartdoc
 doc/api/
 
+# Test coverage
+coverage/
+
 # Avoid committing generated files
 *.g.dart
 *.freezed.dart

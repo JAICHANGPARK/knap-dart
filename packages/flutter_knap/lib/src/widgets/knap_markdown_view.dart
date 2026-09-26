@@ -4,15 +4,36 @@ import 'package:knap/knap.dart';
 import '../controllers/knap_controller.dart';
 import 'knap_builder.dart';
 
+/// A high-level Flutter widget that evaluates a Knap template and renders
+/// the resulting markdown directly to the screen using `flutter_markdown`.
+///
+/// If an evaluation error occurs, an error card is shown by default or custom
+/// UI is rendered using [errorBuilder].
 class KnapMarkdownView extends StatelessWidget {
+  /// The template string to evaluate when managing an internal controller.
   final String? template;
+
+  /// The variable data context map passed to the template.
   final Map<String, Object?>? data;
+
+  /// The custom engine instance, or standard engine if `null`.
   final KnapEngine? engine;
+
+  /// An optional external controller to manage template state and rendering.
   final KnapTemplateController? controller;
+
+  /// Whether the rendered markdown text is selectable by the user.
   final bool selectable;
+
+  /// Optional styling options for the rendered markdown.
   final MarkdownStyleSheet? styleSheet;
+
+  /// Optional custom builder to display when a [KnapException] occurs.
   final Widget Function(BuildContext context, KnapException error)? errorBuilder;
 
+  /// Creates a markdown view widget that dynamically renders a Knap template.
+  ///
+  /// Either [controller] or [template] must be provided.
   const KnapMarkdownView({
     super.key,
     this.template,

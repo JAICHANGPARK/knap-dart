@@ -1,7 +1,9 @@
 import '../errors/exceptions.dart';
 import '../tokens/token.dart';
 
+/// A scanner that transforms Knap template strings into a stream of lexical [Token]s.
 class KnapLexer {
+  /// The raw template source text being tokenized.
   final String source;
   int _start = 0;
   int _current = 0;
@@ -12,8 +14,10 @@ class KnapLexer {
   bool _inTag = false;
   bool _inVariable = false;
 
+  /// Creates a [KnapLexer] for the given template [source].
   KnapLexer(this.source);
 
+  /// Scans the entire [source] and returns an ordered list of [Token]s with whitespace trimming applied.
   List<Token> scanTokens() {
     final tokens = <Token>[];
 

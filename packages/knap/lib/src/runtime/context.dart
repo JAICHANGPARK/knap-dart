@@ -1,12 +1,18 @@
 import '../errors/exceptions.dart';
 import '../filters/filter.dart';
 
+/// An isolated lexical scope maintaining a map of variables with a pointer to its enclosing parent scope.
 class KnapScope {
+  /// The local variables accessible in this scope.
   final Map<String, Object?> variables;
+
+  /// The enclosing parent scope, or `null` if this is the root scope.
   final KnapScope? parent;
 
+  /// Creates a [KnapScope] with [variables] and an optional [parent] scope.
   KnapScope(this.variables, [this.parent]);
 
+  /// Looks up a variable by [name] in this scope or recursively in ancestor scopes.
   Object? lookup(String name) {
     if (variables.containsKey(name)) {
       return variables[name];
@@ -17,39 +23,55 @@ class KnapScope {
     return null;
   }
 
+  /// Sets the value of a variable [name] in the local scope.
   void set(String name, Object? value) {
     variables[name] = value;
   }
 }
 
+/// The execution context for template rendering, managing variable scopes and filter execution.
 class KnapContext {
   KnapScope _currentScope;
+
+  /// The active filter registry used to look up and execute filters.
   final FilterRegistry filterRegistry;
 
+  /// Creates a [KnapContext] with optional initial [variables] and a [filterRegistry].
   KnapContext({
     Map<String, Object?>? variables,
     FilterRegistry? filterRegistry,
   })  : _currentScope = KnapScope(variables ?? {}),
         filterRegistry = filterRegistry ?? FilterRegistry();
 
+  /// Sets a variable [name] to [value] in the innermost active scope.
   void setVariable(String name, Object? value) {
     _currentScope.set(name, value);
   }
 
+  /// Pushes a new child lexical scope with [newVariables].
   void pushScope(Map<String, Object?> newVariables) {
     _currentScope = KnapScope(newVariables, _currentScope);
   }
 
+  /// Pops the topmost lexical scope, returning to its parent.
   void popScope() {
     if (_currentScope.parent != null) {
       _currentScope = _currentScope.parent!;
     }
   }
 
+  /// Resolves the value of variable [name] from the scope hierarchy.
   Object? resolve(String name) => _currentScope.lookup(name);
 
+  /// Resolves a named [property] on [target] (such as Map keys, List lengths, or String lengths).
   Object? resolveProperty(Object? target, String property) {
     if (target == null) return null;
+
+    if (target is MapEntry) {
+      if (property == 'key') return target.key;
+      if (property == 'value') return target.value;
+      return null;
+    }
 
     if (target is Map) {
       if (target.containsKey(property)) {
@@ -86,6 +108,7 @@ class KnapContext {
     return null;
   }
 
+  /// Resolves an element on [target] accessed by [index] or key.
   Object? resolveIndex(Object? target, Object? index) {
     if (target == null) return null;
 
@@ -98,7 +121,12 @@ class KnapContext {
     }
 
     if (target is Map) {
-      return target[index] ?? target[index?.toString()];
+      if (target.containsKey(index)) return target[index];
+      final strKey = index?.toString();
+      if (target.containsKey(strKey)) return target[strKey];
+      final intKey = int.tryParse(strKey ?? '');
+      if (intKey != null && target.containsKey(intKey)) return target[intKey];
+      return null;
     }
 
     if (target is String) {
@@ -112,6 +140,9 @@ class KnapContext {
     return null;
   }
 
+  /// Whether [value] evaluates to truthy according to Knap template rules.
+  ///
+  /// `false`, `0`, `null`, empty strings, empty lists, and empty maps evaluate to `false`.
   bool isTruthy(Object? value) {
     if (value == null) return false;
     if (value is bool) return value;
@@ -122,6 +153,9 @@ class KnapContext {
     return true;
   }
 
+  /// Applies a synchronous filter by [name] with input [value] and [args].
+  ///
+  /// Throws a [KnapEvaluationException] if the filter is not defined or is async-only.
   Object? applyFilter(String name, Object? value, List<Object?> args) {
     final filter = filterRegistry.getSync(name);
     if (filter == null) {
@@ -130,6 +164,9 @@ class KnapContext {
     return filter(value, args);
   }
 
+  /// Applies an asynchronous filter by [name] with input [value] and [args].
+  ///
+  /// Throws a [KnapEvaluationException] if the filter is not defined.
   Future<Object?> applyFilterAsync(String name, Object? value, List<Object?> args) async {
     final filter = filterRegistry.getAsync(name);
     if (filter == null) {

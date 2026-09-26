@@ -1,15 +1,19 @@
 import '../ast/ast.dart';
 import 'context.dart';
 
+/// The AST tree interpreter that evaluates Knap templates within an execution [context].
 class KnapEvaluator {
+  /// The execution context managing variable scoping and filter resolution.
   final KnapContext context;
 
+  /// Creates a [KnapEvaluator] operating on the given [context].
   KnapEvaluator(this.context);
 
   // ----------------------------------------------------------------------
   // Synchronous Evaluation
   // ----------------------------------------------------------------------
 
+  /// Evaluates an AST node list synchronously and returns the rendered template string.
   String evaluate(List<KnapNode> nodes) {
     final buffer = StringBuffer();
     for (final node in nodes) {
@@ -150,6 +154,7 @@ class KnapEvaluator {
   // Asynchronous Evaluation
   // ----------------------------------------------------------------------
 
+  /// Evaluates an AST node list asynchronously and returns the rendered template string.
   Future<String> evaluateAsync(List<KnapNode> nodes) async {
     final buffer = StringBuffer();
     for (final node in nodes) {

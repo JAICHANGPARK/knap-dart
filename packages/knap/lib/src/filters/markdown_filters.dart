@@ -1,5 +1,6 @@
 import 'filter.dart';
 
+/// The built-in library of Markdown, HTML, and Obsidian syntax generation filters.
 final Map<String, KnapFilter> markdownFilters = {
   // Wikilink: [[Target]] or [[Target|Alias]]
   'wikilink': (val, args) {
