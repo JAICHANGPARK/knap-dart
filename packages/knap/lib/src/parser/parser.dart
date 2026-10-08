@@ -1,15 +1,23 @@
 import '../ast/ast.dart';
 import '../errors/exceptions.dart';
+import '../limits/render_limits.dart';
 import '../tokens/token.dart';
 
 /// A recursive descent parser that converts a stream of [Token]s into an abstract syntax tree of [KnapNode]s.
 class KnapParser {
   /// The scanned token stream to parse.
   final List<Token> tokens;
-  int _current = 0;
 
-  /// Creates a [KnapParser] over [tokens].
-  KnapParser(this.tokens);
+  /// Resource and depth limits enforced during parsing.
+  final RenderLimits limits;
+
+  int _current = 0;
+  int _depth = 0;
+
+  /// Creates a [KnapParser] over [tokens] with optional [limits].
+  KnapParser(this.tokens, {this.limits = defaultRenderLimits}) {
+    limits.validate();
+  }
 
   /// Parses the entire token stream and returns the root list of AST [KnapNode]s.
   List<KnapNode> parse() {
@@ -21,6 +29,17 @@ class KnapParser {
       }
     }
     return nodes;
+  }
+
+  T _withDepth<T>(SourceLocation location, T Function() action) {
+    if (++_depth > limits.maxDepth) {
+      throw KnapLimitException('Template exceeded maxDepth', location);
+    }
+    try {
+      return action();
+    } finally {
+      _depth--;
+    }
   }
 
   KnapNode? _parseTopLevelNode() {
@@ -36,7 +55,10 @@ class KnapParser {
       return _parseTagNode();
     }
 
-    throw KnapSyntaxException('Unexpected token: ${_peek().lexeme}', _peek().location);
+    throw KnapSyntaxException(
+      'Unexpected token: ${_peek().lexeme}',
+      _peek().location,
+    );
   }
 
   VariableNode _parseVariableNode() {
@@ -51,34 +73,117 @@ class KnapParser {
       );
       final args = <Expression>[];
       if (_match(TokenType.colon)) {
-        args.add(_parseExpression());
-        while (_matchAny([TokenType.comma, TokenType.colon])) {
-          args.add(_parseExpression());
-        }
+        _parseFilterArguments(args);
       }
       filters.add(FilterCall(filterToken.lexeme, args));
     }
 
-    _consume(TokenType.variableEnd, 'Expected "}}" to close variable tag', startToken.location);
+    _consume(
+      TokenType.variableEnd,
+      'Expected "}}" to close variable tag',
+      startToken.location,
+    );
     return VariableNode(expr, filters: filters);
+  }
+
+  void _parseFilterArguments(List<Expression> args) {
+    // Support parenthesized argument lists: | filter:("a", "b")
+    if (_check(TokenType.leftParen)) {
+      _advance(); // consume '('
+      if (!_check(TokenType.rightParen)) {
+        args.add(_parseSingleFilterArg());
+        while (_matchAny([TokenType.comma, TokenType.colon])) {
+          args.add(_parseSingleFilterArg());
+        }
+      }
+      _consume(TokenType.rightParen, 'Expected ")" after filter arguments');
+      while (_matchAny([TokenType.comma, TokenType.colon])) {
+        args.add(_parseSingleFilterArg());
+      }
+      return;
+    }
+
+    args.add(_parseSingleFilterArg());
+    while (_matchAny([TokenType.comma, TokenType.colon])) {
+      args.add(_parseSingleFilterArg());
+    }
+  }
+
+  Expression _parseSingleFilterArg() {
+    // Check for arrow expression: identifier => ...
+    if (_check(TokenType.identifier) && _peekNext().type == TokenType.arrow) {
+      final idToken = _advance();
+      _advance(); // consume '=>'
+      final buffer = StringBuffer('${idToken.lexeme} => ');
+      var braceDepth = 0;
+      var parenDepth = 0;
+
+      while (!_isAtEnd()) {
+        final token = _peek();
+        if (braceDepth == 0 && parenDepth == 0) {
+          if (token.type == TokenType.pipe ||
+              token.type == TokenType.variableEnd ||
+              token.type == TokenType.tagEnd) {
+            break;
+          }
+        }
+        if (token.type == TokenType.leftBrace) {
+          braceDepth++;
+        } else if (token.type == TokenType.leftParen) {
+          parenDepth++;
+        } else if (token.type == TokenType.rightBrace) {
+          braceDepth--;
+          if (braceDepth < 0) break;
+        } else if (token.type == TokenType.rightParen) {
+          parenDepth--;
+          if (parenDepth < 0) break;
+        }
+
+        if (token.type == TokenType.string) {
+          buffer.write('"${token.literal}"');
+        } else {
+          buffer.write(token.lexeme);
+        }
+        _advance();
+      }
+      return LiteralExpression(buffer.toString().trim());
+    }
+
+    return _parseExpression();
   }
 
   KnapNode _parseTagNode() {
     final tagStartToken = _previous();
 
     if (_match(TokenType.kwIf)) {
-      return _parseIfBlock(tagStartToken);
+      return _withDepth(
+        tagStartToken.location,
+        () => _parseIfBlock(tagStartToken),
+      );
     }
 
     if (_match(TokenType.kwFor)) {
-      return _parseForBlock(tagStartToken);
+      return _withDepth(
+        tagStartToken.location,
+        () => _parseForBlock(tagStartToken),
+      );
     }
 
     if (_match(TokenType.kwSet)) {
-      final nameToken = _consume(TokenType.identifier, 'Expected variable name after "set"');
-      _consume(TokenType.operatorAssign, 'Expected "=" after variable name in set tag');
+      final nameToken = _consume(
+        TokenType.identifier,
+        'Expected variable name after "set"',
+      );
+      _consume(
+        TokenType.operatorAssign,
+        'Expected "=" after variable name in set tag',
+      );
       final valueExpr = _parseExpression();
-      _consume(TokenType.tagEnd, 'Expected "%}" to close set tag', tagStartToken.location);
+      _consume(
+        TokenType.tagEnd,
+        'Expected "%}" to close set tag',
+        tagStartToken.location,
+      );
       return SetNode(nameToken.lexeme, valueExpr);
     }
 
@@ -92,22 +197,38 @@ class KnapParser {
 
   IfNode _parseIfBlock(Token startToken) {
     final condition = _parseExpression();
-    _consume(TokenType.tagEnd, 'Expected "%}" after if condition', startToken.location);
+    _consume(
+      TokenType.tagEnd,
+      'Expected "%}" after if condition',
+      startToken.location,
+    );
 
-    final thenBranch = _parseBlockUntil([TokenType.kwElif, TokenType.kwElse, TokenType.kwEndif]);
+    final thenBranch = _parseBlockUntil([
+      TokenType.kwElif,
+      TokenType.kwElse,
+      TokenType.kwEndif,
+    ]);
     final elifBranches = <ElifBranch>[];
     final elseBranch = <KnapNode>[];
 
-    while (!_isAtEnd() && _check(TokenType.tagStart) && _peekNext().type == TokenType.kwElif) {
+    while (!_isAtEnd() &&
+        _check(TokenType.tagStart) &&
+        _peekNext().type == TokenType.kwElif) {
       _advance(); // tagStart
       _advance(); // elif
       final elifCond = _parseExpression();
       _consume(TokenType.tagEnd, 'Expected "%}" after elif condition');
-      final elifBody = _parseBlockUntil([TokenType.kwElif, TokenType.kwElse, TokenType.kwEndif]);
+      final elifBody = _parseBlockUntil([
+        TokenType.kwElif,
+        TokenType.kwElse,
+        TokenType.kwEndif,
+      ]);
       elifBranches.add(ElifBranch(condition: elifCond, body: elifBody));
     }
 
-    if (!_isAtEnd() && _check(TokenType.tagStart) && _peekNext().type == TokenType.kwElse) {
+    if (!_isAtEnd() &&
+        _check(TokenType.tagStart) &&
+        _peekNext().type == TokenType.kwElse) {
       _advance(); // tagStart
       _advance(); // else
       _consume(TokenType.tagEnd, 'Expected "%}" after else');
@@ -136,12 +257,18 @@ class KnapParser {
     );
     _consume(TokenType.kwIn, 'Expected "in" after variable name in for loop');
     final collection = _parseExpression();
-    _consume(TokenType.tagEnd, 'Expected "%}" after for expression', startToken.location);
+    _consume(
+      TokenType.tagEnd,
+      'Expected "%}" after for expression',
+      startToken.location,
+    );
 
     final body = _parseBlockUntil([TokenType.kwElse, TokenType.kwEndfor]);
     final elseBody = <KnapNode>[];
 
-    if (!_isAtEnd() && _check(TokenType.tagStart) && _peekNext().type == TokenType.kwElse) {
+    if (!_isAtEnd() &&
+        _check(TokenType.tagStart) &&
+        _peekNext().type == TokenType.kwElse) {
       _advance(); // tagStart
       _advance(); // else
       _consume(TokenType.tagEnd, 'Expected "%}" after else');
@@ -240,8 +367,7 @@ class KnapParser {
         TokenType.operatorLessEqual => BinaryOperator.lessEqual,
         TokenType.operatorGreater => BinaryOperator.greater,
         TokenType.operatorGreaterEqual => BinaryOperator.greaterEqual,
-        TokenType.kwContains => BinaryOperator.contains,
-        _ => throw StateError('Unreachable comparison operator: $opType'), // coverage:ignore-line
+        _ => BinaryOperator.contains,
       };
       final right = _parseUnary();
       expr = BinaryOpExpression(op, expr, right);
@@ -300,7 +426,8 @@ class KnapParser {
       return VariableExpression(name);
     }
     if (_match(TokenType.leftParen)) {
-      final expr = _parseExpression();
+      final loc = _previous().location;
+      final expr = _withDepth(loc, _parseExpression);
       _consume(TokenType.rightParen, 'Expected ")" after expression');
       return expr;
     }
@@ -360,7 +487,11 @@ class KnapParser {
 
   Token _previous() => tokens[_current - 1];
 
-  Token _consume(TokenType type, String message, [SourceLocation? fallbackLocation]) {
+  Token _consume(
+    TokenType type,
+    String message, [
+    SourceLocation? fallbackLocation,
+  ]) {
     if (_check(type)) return _advance();
     throw KnapSyntaxException(message, fallbackLocation ?? _peek().location);
   }

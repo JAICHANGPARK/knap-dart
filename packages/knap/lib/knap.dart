@@ -3,12 +3,15 @@
 library knap;
 
 export 'src/ast/ast.dart';
+export 'src/cli/csv_parser.dart';
 export 'src/errors/exceptions.dart';
 export 'src/filters/filter.dart';
+export 'src/filters/html_filters.dart';
 export 'src/filters/markdown_filters.dart';
 export 'src/filters/standard_filters.dart';
 export 'src/knap_engine.dart';
 export 'src/lexer/lexer.dart';
+export 'src/limits/render_limits.dart';
 export 'src/parser/parser.dart';
 export 'src/runtime/context.dart';
 export 'src/runtime/evaluator.dart';

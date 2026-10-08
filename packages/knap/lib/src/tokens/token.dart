@@ -76,6 +76,15 @@ enum TokenType {
   /// A closing bracket (`]`).
   rightBracket,
 
+  /// An opening brace (`{`).
+  leftBrace,
+
+  /// A closing brace (`}`).
+  rightBrace,
+
+  /// An arrow operator (`=>`) used in `map` filter expressions.
+  arrow,
+
   // Operators
 
   /// Assignment operator (`=`).
@@ -128,13 +137,13 @@ enum TokenType {
   /// The `set` keyword.
   kwSet,
 
-  /// The logical `and` keyword.
+  /// The logical `and` (`&&`) keyword.
   kwAnd,
 
-  /// The logical `or` keyword.
+  /// The logical `or` (`||`) keyword.
   kwOr,
 
-  /// The logical `not` keyword.
+  /// The logical `not` (`!`) keyword.
   kwNot,
 
   /// The membership `contains` keyword.

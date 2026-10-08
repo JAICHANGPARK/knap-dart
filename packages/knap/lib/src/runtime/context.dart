@@ -1,6 +1,12 @@
 import '../errors/exceptions.dart';
 import '../filters/filter.dart';
 
+/// A callback that resolves an unknown variable [name] dynamically at runtime.
+typedef KnapVariableResolver = Object? Function(String name);
+
+/// An asynchronous callback that resolves an unknown variable [name] dynamically at runtime.
+typedef KnapAsyncVariableResolver = Future<Object?> Function(String name);
+
 /// An isolated lexical scope maintaining a map of variables with a pointer to its enclosing parent scope.
 class KnapScope {
   /// The local variables accessible in this scope.
@@ -12,8 +18,12 @@ class KnapScope {
   /// Creates a [KnapScope] with [variables] and an optional [parent] scope.
   KnapScope(this.variables, [this.parent]);
 
-  /// Looks up a variable by [name] in this scope or recursively in ancestor scopes.
+  /// Looks up a variable by [name] (or `{{name}}`) in this scope or recursively in ancestor scopes.
   Object? lookup(String name) {
+    final wrapped = '{{$name}}';
+    if (variables.containsKey(wrapped)) {
+      return variables[wrapped];
+    }
     if (variables.containsKey(name)) {
       return variables[name];
     }
@@ -21,6 +31,18 @@ class KnapScope {
       return parent!.lookup(name);
     }
     return null;
+  }
+
+  /// Whether [name] (or `{{name}}`) is explicitly present in this scope or an ancestor scope.
+  bool contains(String name) {
+    final wrapped = '{{$name}}';
+    if (variables.containsKey(wrapped) || variables.containsKey(name)) {
+      return true;
+    }
+    if (parent != null) {
+      return parent!.contains(name);
+    }
+    return false;
   }
 
   /// Sets the value of a variable [name] in the local scope.
@@ -36,12 +58,28 @@ class KnapContext {
   /// The active filter registry used to look up and execute filters.
   final FilterRegistry filterRegistry;
 
-  /// Creates a [KnapContext] with optional initial [variables] and a [filterRegistry].
+  /// Optional synchronous fallback resolver for unknown variable names.
+  final KnapVariableResolver? variableResolver;
+
+  /// Optional asynchronous fallback resolver for unknown variable names.
+  final KnapAsyncVariableResolver? asyncVariableResolver;
+
+  /// Non-fatal warnings recorded during filter execution.
+  final List<TemplateWarning> warnings = [];
+
+  /// Creates a [KnapContext] with optional initial [variables], [filterRegistry], and variable resolvers.
   KnapContext({
     Map<String, Object?>? variables,
     FilterRegistry? filterRegistry,
-  })  : _currentScope = KnapScope(variables ?? {}),
+    this.variableResolver,
+    this.asyncVariableResolver,
+  })  : _currentScope = KnapScope(Map<String, Object?>.from(variables ?? {})),
         filterRegistry = filterRegistry ?? FilterRegistry();
+
+  /// Records a non-fatal [warning] emitted by a filter.
+  void reportWarning(TemplateWarning warning) {
+    warnings.add(warning);
+  }
 
   /// Sets a variable [name] to [value] in the innermost active scope.
   void setVariable(String name, Object? value) {
@@ -60,8 +98,33 @@ class KnapContext {
     }
   }
 
-  /// Resolves the value of variable [name] from the scope hierarchy.
-  Object? resolve(String name) => _currentScope.lookup(name);
+  /// Whether [name] is explicitly defined in the current scope hierarchy.
+  bool hasVariable(String name) => _currentScope.contains(name);
+
+  /// Resolves the value of variable [name] from the scope hierarchy or [variableResolver].
+  Object? resolve(String name) {
+    if (_currentScope.contains(name)) {
+      return _currentScope.lookup(name);
+    }
+    if (variableResolver != null) {
+      return variableResolver!(name);
+    }
+    return null;
+  }
+
+  /// Resolves the value of variable [name] asynchronously using [asyncVariableResolver] when needed.
+  Future<Object?> resolveAsync(String name) async {
+    if (_currentScope.contains(name)) {
+      return _currentScope.lookup(name);
+    }
+    if (asyncVariableResolver != null) {
+      return await asyncVariableResolver!(name);
+    }
+    if (variableResolver != null) {
+      return variableResolver!(name);
+    }
+    return null;
+  }
 
   /// Resolves a named [property] on [target] (such as Map keys, List lengths, or String lengths).
   Object? resolveProperty(Object? target, String property) {
@@ -74,6 +137,10 @@ class KnapContext {
     }
 
     if (target is Map) {
+      final wrapped = '{{$property}}';
+      if (target.containsKey(wrapped)) {
+        return target[wrapped];
+      }
       if (target.containsKey(property)) {
         return target[property];
       }
@@ -113,7 +180,8 @@ class KnapContext {
     if (target == null) return null;
 
     if (target is List) {
-      final intIndex = index is num ? index.toInt() : int.tryParse(index?.toString() ?? '');
+      final intIndex =
+          index is num ? index.toInt() : int.tryParse(index?.toString() ?? '');
       if (intIndex != null && intIndex >= 0 && intIndex < target.length) {
         return target[intIndex];
       }
@@ -130,7 +198,8 @@ class KnapContext {
     }
 
     if (target is String) {
-      final intIndex = index is num ? index.toInt() : int.tryParse(index?.toString() ?? '');
+      final intIndex =
+          index is num ? index.toInt() : int.tryParse(index?.toString() ?? '');
       if (intIndex != null && intIndex >= 0 && intIndex < target.length) {
         return target[intIndex];
       }
@@ -159,7 +228,11 @@ class KnapContext {
   Object? applyFilter(String name, Object? value, List<Object?> args) {
     final filter = filterRegistry.getSync(name);
     if (filter == null) {
-      throw KnapEvaluationException('Filter "$name" is not defined or is async-only');
+      throw KnapEvaluationException(
+        'Filter "$name" is not defined or is async-only',
+        null,
+        TemplateErrorCode.unknownFilter,
+      );
     }
     return filter(value, args);
   }
@@ -167,10 +240,18 @@ class KnapContext {
   /// Applies an asynchronous filter by [name] with input [value] and [args].
   ///
   /// Throws a [KnapEvaluationException] if the filter is not defined.
-  Future<Object?> applyFilterAsync(String name, Object? value, List<Object?> args) async {
+  Future<Object?> applyFilterAsync(
+    String name,
+    Object? value,
+    List<Object?> args,
+  ) async {
     final filter = filterRegistry.getAsync(name);
     if (filter == null) {
-      throw KnapEvaluationException('Filter "$name" is not defined');
+      throw KnapEvaluationException(
+        'Filter "$name" is not defined',
+        null,
+        TemplateErrorCode.unknownFilter,
+      );
     }
     return await filter(value, args);
   }

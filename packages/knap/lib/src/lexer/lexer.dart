@@ -121,6 +121,11 @@ class KnapLexer {
         ),
       );
     } else if (_peek() == '{' && _peekNext() == '#') {
+      final commentStart = SourceLocation(
+        offset: _start,
+        line: _line,
+        column: _startColumn,
+      );
       _advance(); // {
       _advance(); // #
       var trimLeft = false;
@@ -128,11 +133,15 @@ class KnapLexer {
         _advance();
         trimLeft = true;
       }
-      _scanComment(tokens, trimLeft);
+      _scanComment(tokens, trimLeft, commentStart);
     }
   }
 
-  void _scanComment(List<Token> tokens, bool trimLeft) {
+  void _scanComment(
+    List<Token> tokens,
+    bool trimLeft,
+    SourceLocation commentStart,
+  ) {
     if (trimLeft && tokens.isNotEmpty && tokens.last.type == TokenType.text) {
       final last = tokens.last;
       final trimmed = (last.literal as String).trimRight();
@@ -145,24 +154,35 @@ class KnapLexer {
     }
 
     var trimRight = false;
+    var closed = false;
     while (!_isAtEnd()) {
       if (_peek() == '-' && _peekNext() == '#' && _peekAfter(2) == '}') {
         _advance(); // -
         _advance(); // #
         _advance(); // }
         trimRight = true;
+        closed = true;
         break;
       } else if (_peek() == '#' && _peekNext() == '}') {
         _advance(); // #
         _advance(); // }
+        closed = true;
         break;
       }
       _advance();
     }
 
+    if (!closed) {
+      throw KnapSyntaxException("Unclosed comment - missing '#}'", commentStart);
+    }
+
     if (trimRight) {
       // Consume whitespace immediately following the comment
-      while (!_isAtEnd() && (_peek() == ' ' || _peek() == '\t' || _peek() == '\n' || _peek() == '\r')) {
+      while (!_isAtEnd() &&
+          (_peek() == ' ' ||
+              _peek() == '\t' ||
+              _peek() == '\n' ||
+              _peek() == '\r')) {
         _advance();
       }
     }
@@ -253,7 +273,21 @@ class KnapLexer {
 
     switch (c) {
       case '|':
-        _addToken(tokens, TokenType.pipe);
+        if (_match('|')) {
+          _addToken(tokens, TokenType.kwOr);
+        } else {
+          _addToken(tokens, TokenType.pipe);
+        }
+        break;
+      case '&':
+        if (_match('&')) {
+          _addToken(tokens, TokenType.kwAnd);
+        } else {
+          throw KnapSyntaxException(
+            'Unexpected character: &',
+            SourceLocation(offset: _start, line: _line, column: _startColumn),
+          );
+        }
         break;
       case ':':
         _addToken(tokens, TokenType.colon);
@@ -276,9 +310,17 @@ class KnapLexer {
       case ']':
         _addToken(tokens, TokenType.rightBracket);
         break;
+      case '{':
+        _addToken(tokens, TokenType.leftBrace);
+        break;
+      case '}':
+        _addToken(tokens, TokenType.rightBrace);
+        break;
       case '=':
         if (_match('=')) {
           _addToken(tokens, TokenType.operatorEqual);
+        } else if (_match('>')) {
+          _addToken(tokens, TokenType.arrow);
         } else {
           _addToken(tokens, TokenType.operatorAssign);
         }
@@ -319,7 +361,7 @@ class KnapLexer {
         _scanString(tokens, c);
         break;
       default:
-        if (_isDigit(c)) {
+        if (_isDigit(c) || (c == '-' && _isDigit(_peek()))) {
           _scanNumber(tokens);
         } else if (_isAlpha(c)) {
           _scanIdentifier(tokens);
@@ -427,7 +469,25 @@ class KnapLexer {
       _advance();
     }
 
-    final text = source.substring(_start, _current);
+    var text = source.substring(_start, _current);
+
+    // Special handling for CSS selectors (selector: and selectorHtml: prefixes)
+    if ((text == 'selector' || text == 'selectorHtml') && _peek() == ':') {
+      _advance(); // consume ':'
+      while (!_isAtEnd()) {
+        final ch = _peek();
+        if (ch == '|' ||
+            (ch == '}' && _peekNext() == '}') ||
+            (ch == '%' && _peekNext() == '}') ||
+            (ch == '-' && _peekNext() == '}' && _peekAfter(2) == '}') ||
+            (ch == '-' && _peekNext() == '%' && _peekAfter(2) == '}')) {
+          break;
+        }
+        _advance();
+      }
+      text = source.substring(_start, _current).trimRight();
+    }
+
     final type = _keywords[text] ?? TokenType.identifier;
 
     Object? literal;
@@ -481,7 +541,9 @@ class KnapLexer {
       }
 
       // If previous token was an end tag with trimRight, trim this text token if it's text
-      if (result.isNotEmpty && result.last.trimRight && token.type == TokenType.text) {
+      if (result.isNotEmpty &&
+          result.last.trimRight &&
+          token.type == TokenType.text) {
         final trimmedText = (token.literal as String).trimLeft();
         token = Token(
           type: TokenType.text,
@@ -529,7 +591,8 @@ class KnapLexer {
 
   bool _isAtEnd() => _current >= source.length;
 
-  bool _isDigit(String c) => c.isNotEmpty && c.codeUnitAt(0) >= 48 && c.codeUnitAt(0) <= 57;
+  bool _isDigit(String c) =>
+      c.isNotEmpty && c.codeUnitAt(0) >= 48 && c.codeUnitAt(0) <= 57;
 
   bool _isAlpha(String c) {
     if (c.isEmpty) return false;

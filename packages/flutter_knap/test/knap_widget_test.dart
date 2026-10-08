@@ -7,7 +7,13 @@ class _FailingEngine extends KnapEngine {
   _FailingEngine() : super(filters: {});
 
   @override
-  String render(String template, {Map<String, Object?>? data}) {
+  String render(
+    String template, {
+    Map<String, Object?>? data,
+    KnapVariableResolver? variableResolver,
+    RenderLimits? limits,
+    void Function(TemplateWarning warning)? onWarning,
+  }) {
     throw StateError('Engine exploded');
   }
 }

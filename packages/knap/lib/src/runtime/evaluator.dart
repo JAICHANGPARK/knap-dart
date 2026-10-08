@@ -1,4 +1,6 @@
+import 'dart:convert';
 import '../ast/ast.dart';
+import '../limits/render_limits.dart';
 import 'context.dart';
 
 /// The AST tree interpreter that evaluates Knap templates within an execution [context].
@@ -6,8 +8,12 @@ class KnapEvaluator {
   /// The execution context managing variable scoping and filter resolution.
   final KnapContext context;
 
-  /// Creates a [KnapEvaluator] operating on the given [context].
-  KnapEvaluator(this.context);
+  /// The resource budget enforcing limits on operations, output size, and value depth.
+  final RenderBudget budget;
+
+  /// Creates a [KnapEvaluator] operating on the given [context] and optional [limits].
+  KnapEvaluator(this.context, {RenderLimits limits = defaultRenderLimits})
+      : budget = RenderBudget(limits);
 
   // ----------------------------------------------------------------------
   // Synchronous Evaluation
@@ -17,7 +23,9 @@ class KnapEvaluator {
   String evaluate(List<KnapNode> nodes) {
     final buffer = StringBuffer();
     for (final node in nodes) {
+      budget.step();
       _evaluateNode(node, buffer);
+      budget.checkOutput(buffer.length);
     }
     return buffer.toString();
   }
@@ -29,15 +37,22 @@ class KnapEvaluator {
 
       case VariableNode(:final expression, :final filters):
         var value = _evaluateExpression(expression);
+        budget.checkValue(value);
         for (final filter in filters) {
-          final filterArgs = filter.arguments.map(_evaluateExpression).toList();
+          final filterArgs = filter.arguments.map(_evaluateFilterArg).toList();
           value = context.applyFilter(filter.name, value, filterArgs);
+          budget.checkValue(value);
         }
         if (value != null) {
-          buffer.write(value.toString());
+          buffer.write(_formatOutputValue(value));
         }
 
-      case IfNode(:final condition, :final thenBranch, :final elifBranches, :final elseBranch):
+      case IfNode(
+          :final condition,
+          :final thenBranch,
+          :final elifBranches,
+          :final elseBranch
+        ):
         if (context.isTruthy(_evaluateExpression(condition))) {
           buffer.write(evaluate(thenBranch));
           return;
@@ -70,6 +85,7 @@ class KnapEvaluator {
 
         final length = list.length;
         for (var i = 0; i < length; i++) {
+          budget.step();
           final item = list[i];
           final loopMeta = {
             'index': i + 1,
@@ -83,20 +99,32 @@ class KnapEvaluator {
 
           context.pushScope({
             variableName: item,
+            '${variableName}_index': i,
             'loop': loopMeta,
           });
 
           buffer.write(evaluate(body));
           context.popScope();
+          budget.checkOutput(buffer.length);
         }
 
       case SetNode(:final name, :final value):
         final val = _evaluateExpression(value);
+        budget.checkValue(val);
         context.setVariable(name, val);
     }
   }
 
+  Object? _evaluateFilterArg(Expression arg) {
+    if (arg is VariableExpression && !context.hasVariable(arg.name)) {
+      final resolved = context.resolve(arg.name);
+      return resolved ?? arg.name;
+    }
+    return _evaluateExpression(arg);
+  }
+
   Object? _evaluateExpression(Expression expr) {
+    budget.step();
     switch (expr) {
       case LiteralExpression(:final value):
         return value;
@@ -131,9 +159,13 @@ class KnapEvaluator {
           case BinaryOperator.contains:
             return _evaluateContains(leftVal, _evaluateExpression(right));
           case BinaryOperator.or:
-            return context.isTruthy(leftVal) ? leftVal : _evaluateExpression(right);
+            return context.isTruthy(leftVal)
+                ? leftVal
+                : _evaluateExpression(right);
           case BinaryOperator.and:
-            return context.isTruthy(leftVal) ? _evaluateExpression(right) : leftVal;
+            return context.isTruthy(leftVal)
+                ? _evaluateExpression(right)
+                : leftVal;
           case BinaryOperator.equal:
             return _areEqual(leftVal, _evaluateExpression(right));
           case BinaryOperator.notEqual:
@@ -158,7 +190,9 @@ class KnapEvaluator {
   Future<String> evaluateAsync(List<KnapNode> nodes) async {
     final buffer = StringBuffer();
     for (final node in nodes) {
+      budget.step();
       await _evaluateNodeAsync(node, buffer);
+      budget.checkOutput(buffer.length);
     }
     return buffer.toString();
   }
@@ -170,18 +204,25 @@ class KnapEvaluator {
 
       case VariableNode(:final expression, :final filters):
         var value = await _evaluateExpressionAsync(expression);
+        budget.checkValue(value);
         for (final filter in filters) {
           final filterArgs = <Object?>[];
           for (final arg in filter.arguments) {
-            filterArgs.add(await _evaluateExpressionAsync(arg));
+            filterArgs.add(await _evaluateFilterArgAsync(arg));
           }
           value = await context.applyFilterAsync(filter.name, value, filterArgs);
+          budget.checkValue(value);
         }
         if (value != null) {
-          buffer.write(value.toString());
+          buffer.write(_formatOutputValue(value));
         }
 
-      case IfNode(:final condition, :final thenBranch, :final elifBranches, :final elseBranch):
+      case IfNode(
+          :final condition,
+          :final thenBranch,
+          :final elifBranches,
+          :final elseBranch
+        ):
         final condVal = await _evaluateExpressionAsync(condition);
         if (context.isTruthy(condVal)) {
           buffer.write(await evaluateAsync(thenBranch));
@@ -216,6 +257,7 @@ class KnapEvaluator {
 
         final length = list.length;
         for (var i = 0; i < length; i++) {
+          budget.step();
           final item = list[i];
           final loopMeta = {
             'index': i + 1,
@@ -229,20 +271,32 @@ class KnapEvaluator {
 
           context.pushScope({
             variableName: item,
+            '${variableName}_index': i,
             'loop': loopMeta,
           });
 
           buffer.write(await evaluateAsync(body));
           context.popScope();
+          budget.checkOutput(buffer.length);
         }
 
       case SetNode(:final name, :final value):
         final val = await _evaluateExpressionAsync(value);
+        budget.checkValue(val);
         context.setVariable(name, val);
     }
   }
 
+  Future<Object?> _evaluateFilterArgAsync(Expression arg) async {
+    if (arg is VariableExpression && !context.hasVariable(arg.name)) {
+      final resolved = await context.resolveAsync(arg.name);
+      return resolved ?? arg.name;
+    }
+    return await _evaluateExpressionAsync(arg);
+  }
+
   Future<Object?> _evaluateExpressionAsync(Expression expr) async {
+    budget.step();
     switch (expr) {
       case LiteralExpression(:final value):
         return value;
@@ -255,7 +309,7 @@ class KnapEvaluator {
         return list;
 
       case VariableExpression(:final name):
-        return context.resolve(name);
+        return await context.resolveAsync(name);
 
       case PropertyAccessExpression(:final target, :final property):
         final targetVal = await _evaluateExpressionAsync(target);
@@ -309,16 +363,26 @@ class KnapEvaluator {
   // Utilities
   // ----------------------------------------------------------------------
 
+  String _formatOutputValue(Object value) {
+    if (value is List && value.length == 1 && value.first is! Map && value.first is! List) {
+      return value.first?.toString() ?? '';
+    }
+    return value.toString();
+  }
+
   bool _evaluateContains(Object? container, Object? item) {
     if (container == null) return false;
 
     if (container is String) {
       final search = item?.toString() ?? '';
-      return container.contains(search);
+      return container.toLowerCase().contains(search.toLowerCase());
     }
 
     if (container is Iterable) {
       for (final el in container) {
+        if (el is String && item is String) {
+          if (el.toLowerCase() == item.toLowerCase()) return true;
+        }
         if (_areEqual(el, item)) return true;
       }
       return false;
@@ -338,6 +402,12 @@ class KnapEvaluator {
     if (val is List) return val;
     if (val is Iterable) return val.toList();
     if (val is Map) return val.entries.toList();
+    if (val is String && val.trim().startsWith('[')) {
+      try {
+        final decoded = jsonDecode(val);
+        if (decoded is List) return decoded;
+      } catch (_) {}
+    }
     return [val];
   }
 

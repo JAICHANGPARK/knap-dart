@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'filter.dart';
+import 'html_filters.dart';
 
 List<String> _splitWords(String str) {
   if (str.isEmpty) return [];
@@ -50,6 +51,101 @@ String _formatDate(DateTime dt, String format) {
       .replaceAll('ss', ss);
 }
 
+String _yamlKeyText(String key) {
+  final validUnquoted =
+      RegExp(r'^[a-zA-Z_][\w-]*$').hasMatch(key) &&
+      !RegExp(
+        r'^(?:true|false|null|yes|no|on|off|y|n)$',
+        caseSensitive: false,
+      ).hasMatch(key);
+  return validUnquoted ? key : jsonEncode(key);
+}
+
+String _yamlFlow(Object? value) => jsonEncode(value);
+
+String _yamlBlock(Object? value) {
+  if (value is List) {
+    if (value.isEmpty) return '[]';
+    return value
+        .map((item) => '- ${_yamlBlock(item).replaceAll('\n', '\n  ')}')
+        .join('\n');
+  }
+  if (value is Map) {
+    if (value.isEmpty) return '{}';
+    return value.entries.map((entry) {
+      final k = _yamlKeyText(entry.key.toString());
+      final v = entry.value;
+      final isNestedBlock =
+          (v is List && v.isNotEmpty) || (v is Map && v.isNotEmpty);
+      if (isNestedBlock) {
+        return '$k:\n  ${_yamlBlock(v).replaceAll('\n', '\n  ')}';
+      }
+      return '$k: ${_yamlBlock(v)}';
+    }).join('\n');
+  }
+  return _yamlFlow(value);
+}
+
+Object? _resolveNestedPath(Object? item, String path) {
+  var current = item;
+  final segments = path
+      .split(RegExp(r'[.\[\]]'))
+      .where((s) => s.isNotEmpty)
+      .toList();
+  for (final seg in segments) {
+    if (current is Map) {
+      current = current[seg];
+    } else if (current is List) {
+      final idx = int.tryParse(seg);
+      current = (idx != null && idx >= 0 && idx < current.length)
+          ? current[idx]
+          : null;
+    } else {
+      return null;
+    }
+  }
+  return current;
+}
+
+Object? _evaluateArrowItem(Object? item, String argName, String rawExpr) {
+  var expr = rawExpr.trim();
+  if (expr.startsWith('(') && expr.endsWith(')')) {
+    expr = expr.substring(1, expr.length - 1).trim();
+  }
+  if (expr.startsWith('{') && expr.endsWith('}')) {
+    final body = expr.substring(1, expr.length - 1).trim();
+    final result = <String, Object?>{};
+    if (body.isNotEmpty) {
+      for (final part in body.split(',')) {
+        final colonIdx = part.indexOf(':');
+        if (colonIdx > 0) {
+          final rawKey = part.substring(0, colonIdx).trim();
+          final cleanKey = rawKey.replaceAll(RegExp('^[\'"]|[\'"]\$'), '');
+          final valExpr = part.substring(colonIdx + 1).trim();
+          result[cleanKey] = _evaluateArrowValue(item, argName, valExpr);
+        }
+      }
+    }
+    return result;
+  }
+  if ((expr.startsWith('"') && expr.endsWith('"')) ||
+      (expr.startsWith("'") && expr.endsWith("'"))) {
+    final inner = expr.substring(1, expr.length - 1);
+    return inner.replaceAll('\${$argName}', item?.toString() ?? '');
+  }
+  return _evaluateArrowValue(item, argName, expr);
+}
+
+Object? _evaluateArrowValue(Object? item, String argName, String expr) {
+  final trimmed = expr.trim();
+  if (trimmed == argName) return item;
+  final prefix = '$argName.';
+  if (trimmed.startsWith(prefix)) {
+    return _resolveNestedPath(item, trimmed.substring(prefix.length));
+  }
+  return trimmed.replaceAll(RegExp('^[\'"]|[\'"]\$'), '');
+}
+
 /// The built-in library of standard string, collection, math, date, and utility filters.
 final Map<String, KnapFilter> standardFilters = {
   // String filters
@@ -88,7 +184,10 @@ final Map<String, KnapFilter> standardFilters = {
     final words = _splitWords(val?.toString() ?? '');
     if (words.isEmpty) return '';
     return words.first.toLowerCase() +
-        words.skip(1).map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase()).join('');
+        words
+            .skip(1)
+            .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+            .join('');
   },
   'kebab': (val, args) {
     final words = _splitWords(val?.toString() ?? '');
@@ -96,15 +195,33 @@ final Map<String, KnapFilter> standardFilters = {
   },
   'pascal': (val, args) {
     final words = _splitWords(val?.toString() ?? '');
-    return words.map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase()).join('');
+    return words
+        .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+        .join('');
   },
 
   'replace': (val, args) {
-    final str = val?.toString() ?? '';
+    var str = val?.toString() ?? '';
     if (args.isEmpty) return str;
-    final from = args[0]?.toString() ?? '';
-    final to = args.length > 1 ? (args[1]?.toString() ?? '') : '';
-    return str.replaceAll(from, to);
+    for (var i = 0; i < args.length; i += 2) {
+      final from = args[i]?.toString() ?? '';
+      final to = (i + 1 < args.length) ? (args[i + 1]?.toString() ?? '') : '';
+      final regexMatch = RegExp(r'^/(.+)/([gimsuy]*)$').firstMatch(from);
+      if (regexMatch != null) {
+        final pattern = regexMatch.group(1)!;
+        final flags = regexMatch.group(2)!;
+        final reg = RegExp(
+          pattern,
+          caseSensitive: !flags.contains('i'),
+          multiLine: flags.contains('m'),
+          dotAll: flags.contains('s'),
+        );
+        str = str.replaceAll(reg, to);
+      } else {
+        str = str.replaceAll(from, to);
+      }
+    }
+    return str;
   },
   'default': (val, args) {
     final fallback = args.isNotEmpty ? args[0] : '';
@@ -116,10 +233,29 @@ final Map<String, KnapFilter> standardFilters = {
   },
   'truncate': (val, args) {
     final str = val?.toString() ?? '';
-    final maxLen = args.isNotEmpty && args[0] is num ? (args[0] as num).toInt() : 50;
+    final maxLen = args.isNotEmpty
+        ? (args[0] is num
+              ? (args[0] as num).toInt()
+              : int.tryParse(args[0]?.toString() ?? '') ?? 50)
+        : 50;
     final suffix = args.length > 1 ? args[1]?.toString() ?? '...' : '...';
+    if (maxLen <= 0) return '';
     if (str.length <= maxLen) return str;
     return '${str.substring(0, maxLen)}$suffix';
+  },
+  'truncatewords': (val, args) {
+    final str = val?.toString() ?? '';
+    final limit = args.isNotEmpty
+        ? (args[0] is num
+              ? (args[0] as num).toInt()
+              : int.tryParse(args[0]?.toString() ?? '') ?? 0)
+        : 0;
+    final suffix = args.length > 1 ? args[1]?.toString() ?? '…' : '…';
+    if (limit <= 0) return '';
+    final matches = RegExp(r'\S+').allMatches(str).toList();
+    if (matches.length <= limit) return str;
+    final finalWord = matches[limit - 1];
+    return '${str.substring(0, finalWord.end)}$suffix';
   },
 
   // Collection filters
@@ -148,17 +284,35 @@ final Map<String, KnapFilter> standardFilters = {
     return val?.toString() ?? '';
   },
   'sort': (val, args) {
-    if (val is List) {
-      final copy = List<Object?>.from(val);
-      copy.sort((a, b) => (a?.toString() ?? '').compareTo(b?.toString() ?? ''));
-      return copy;
+    if (val is! Iterable) return val;
+    final copy = val.toList();
+    String? property;
+    var desc = false;
+    if (args.isNotEmpty) {
+      final firstArg = args[0]?.toString() ?? '';
+      if (args.length == 1 &&
+          (firstArg.toLowerCase() == 'asc' ||
+              firstArg.toLowerCase() == 'desc')) {
+        desc = firstArg.toLowerCase() == 'desc';
+      } else {
+        property = firstArg.isEmpty ? null : firstArg;
+        if (args.length > 1) {
+          desc = args[1]?.toString().toLowerCase() == 'desc';
+        }
+      }
     }
-    if (val is Iterable) {
-      final copy = val.toList();
-      copy.sort((a, b) => (a?.toString() ?? '').compareTo(b?.toString() ?? ''));
-      return copy;
-    }
-    return val;
+    copy.sort((a, b) {
+      final leftVal = property != null ? _resolveNestedPath(a, property) : a;
+      final rightVal = property != null ? _resolveNestedPath(b, property) : b;
+      int cmp;
+      if (leftVal is num && rightVal is num) {
+        cmp = leftVal.compareTo(rightVal);
+      } else {
+        cmp = (leftVal?.toString() ?? '').compareTo(rightVal?.toString() ?? '');
+      }
+      return desc ? -cmp : cmp;
+    });
+    return copy;
   },
   'reverse': (val, args) {
     if (val is List) {
@@ -173,17 +327,25 @@ final Map<String, KnapFilter> standardFilters = {
     return val;
   },
   'slice': (val, args) {
-    final start = args.isNotEmpty && args[0] is num ? (args[0] as num).toInt() : 0;
-    final end = args.length > 1 && args[1] is num ? (args[1] as num).toInt() : null;
+    final start = args.isNotEmpty && args[0] is num
+        ? (args[0] as num).toInt()
+        : 0;
+    final end = args.length > 1 && args[1] is num
+        ? (args[1] as num).toInt()
+        : null;
 
     if (val is List) {
       final effectiveStart = start.clamp(0, val.length);
-      final effectiveEnd = end != null ? end.clamp(effectiveStart, val.length) : val.length;
+      final effectiveEnd = end != null
+          ? end.clamp(effectiveStart, val.length)
+          : val.length;
       return val.sublist(effectiveStart, effectiveEnd);
     }
     if (val is String) {
       final effectiveStart = start.clamp(0, val.length);
-      final effectiveEnd = end != null ? end.clamp(effectiveStart, val.length) : val.length;
+      final effectiveEnd = end != null
+          ? end.clamp(effectiveStart, val.length)
+          : val.length;
       return val.substring(effectiveStart, effectiveEnd);
     }
     return val;
@@ -213,14 +375,33 @@ final Map<String, KnapFilter> standardFilters = {
   },
   'yaml': (val, args) {
     if (val == null) return 'null';
+    final isFlow =
+        args.isNotEmpty && args[0]?.toString().toLowerCase() == 'flow';
+    if (val is List || val is Map) {
+      return isFlow ? _yamlFlow(val) : _yamlBlock(val);
+    }
     final str = val.toString();
     if (str.isEmpty) return "''";
+    if (isFlow) return _yamlFlow(val);
     if (RegExp(r'[:#\[\]{}&*!|>"%@`]|\n').hasMatch(str) ||
         str.startsWith(' ') ||
         str.endsWith(' ')) {
       return jsonEncode(str);
     }
     return str;
+  },
+  'yaml_property': (val, args) {
+    if (args.isEmpty) return val?.toString() ?? '';
+    final key = args[0]?.toString().trim() ?? '';
+    if (key.isEmpty) return val?.toString() ?? '';
+    final formattedKey = _yamlKeyText(key);
+    if (val is List || val is Map) {
+      return _yamlBlock({key: val});
+    }
+    if (val == null || val is bool || val is num) {
+      return '$formattedKey: ${_yamlFlow(val)}';
+    }
+    return '$formattedKey: ${_yamlFlow(val.toString())}';
   },
   'hard_break': (val, args) {
     final str = val?.toString() ?? '';
@@ -239,7 +420,9 @@ final Map<String, KnapFilter> standardFilters = {
   'date': (val, args) {
     final dt = _parseDateTime(val);
     if (dt == null) return val?.toString() ?? '';
-    final format = args.isNotEmpty ? args[0]?.toString() ?? 'YYYY-MM-DD' : 'YYYY-MM-DD';
+    final format = args.isNotEmpty
+        ? args[0]?.toString() ?? 'YYYY-MM-DD'
+        : 'YYYY-MM-DD';
     return _formatDate(dt, format);
   },
   'date_modify': (val, args) {
@@ -247,8 +430,10 @@ final Map<String, KnapFilter> standardFilters = {
     if (dt == null || args.isEmpty) return val?.toString() ?? '';
 
     final modifier = args[0]?.toString().trim() ?? '';
-    final match = RegExp(r'^([+-]?\d+)\s*(year|month|week|day|hour|minute|second)s?$', caseSensitive: false)
-        .firstMatch(modifier);
+    final match = RegExp(
+      r'^([+-]?\d+)\s*(year|month|week|day|hour|minute|second)s?$',
+      caseSensitive: false,
+    ).firstMatch(modifier);
 
     if (match == null) return _formatDate(dt, 'YYYY-MM-DD');
 
@@ -258,10 +443,24 @@ final Map<String, KnapFilter> standardFilters = {
     DateTime modified;
     switch (unit) {
       case 'year':
-        modified = DateTime(dt.year + amount, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+        modified = DateTime(
+          dt.year + amount,
+          dt.month,
+          dt.day,
+          dt.hour,
+          dt.minute,
+          dt.second,
+        );
         break;
       case 'month':
-        modified = DateTime(dt.year, dt.month + amount, dt.day, dt.hour, dt.minute, dt.second);
+        modified = DateTime(
+          dt.year,
+          dt.month + amount,
+          dt.day,
+          dt.hour,
+          dt.minute,
+          dt.second,
+        );
         break;
       case 'week':
         modified = dt.add(Duration(days: amount * 7));
@@ -282,7 +481,9 @@ final Map<String, KnapFilter> standardFilters = {
         modified = dt;
     }
 
-    final format = args.length > 1 ? args[1]?.toString() ?? 'YYYY-MM-DD' : 'YYYY-MM-DD';
+    final format = args.length > 1
+        ? args[1]?.toString() ?? 'YYYY-MM-DD'
+        : 'YYYY-MM-DD';
     return _formatDate(modified, format);
   },
 
@@ -294,15 +495,50 @@ final Map<String, KnapFilter> standardFilters = {
   },
   'indent': (val, args) {
     final str = val?.toString() ?? '';
-    final width = args.isNotEmpty && args[0] is num ? (args[0] as num).toInt() : 2;
+    final width = args.isNotEmpty && args[0] is num
+        ? (args[0] as num).toInt()
+        : 2;
     final indentStr = ' ' * width;
-    return str.split('\n').map((line) => line.isEmpty ? line : '$indentStr$line').join('\n');
+    return str
+        .split('\n')
+        .map((line) => line.isEmpty ? line : '$indentStr$line')
+        .join('\n');
   },
   'encode_uri': (val, args) => Uri.encodeComponent(val?.toString() ?? ''),
   'decode_uri': (val, args) => Uri.decodeComponent(val?.toString() ?? ''),
   'safe_name': (val, args) {
     final str = val?.toString() ?? '';
-    final replacement = args.isNotEmpty ? args[0]?.toString() ?? '' : '';
+    final arg = args.isNotEmpty ? args[0]?.toString() : null;
+    final lowerArg = arg?.toLowerCase();
+    if (lowerArg == 'windows' || lowerArg == 'mac' || lowerArg == 'linux') {
+      var sanitized = str.replaceAll(RegExp(r'[#|\^\[\]]'), '');
+      if (lowerArg == 'windows') {
+        sanitized = sanitized
+            .replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), '')
+            .replaceAllMapped(
+              RegExp(
+                r'^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$',
+                caseSensitive: false,
+              ),
+              (m) => '_${m.group(1)}${m.group(2) ?? ''}',
+            )
+            .replaceAll(RegExp(r'[\s.]+$'), '');
+      } else if (lowerArg == 'mac') {
+        sanitized = sanitized
+            .replaceAll(RegExp(r'[/:\x00-\x1F]'), '')
+            .replaceFirst(RegExp(r'^\.'), '_');
+      } else {
+        sanitized = sanitized
+            .replaceAll(RegExp(r'[/\x00-\x1F]'), '')
+            .replaceFirst(RegExp(r'^\.'), '_');
+      }
+      sanitized = sanitized.replaceFirst(RegExp(r'^\.+'), '');
+      if (sanitized.length > 245) {
+        sanitized = sanitized.substring(0, 245);
+      }
+      return sanitized.isEmpty ? 'Untitled' : sanitized;
+    }
+    final replacement = arg ?? '';
     return str.replaceAll(RegExp(r'[/\\?%*:|"<>#^\[\]]'), replacement).trim();
   },
   'strip_tags': (val, args) {
@@ -322,6 +558,7 @@ final Map<String, KnapFilter> standardFilters = {
   },
   'remove_html': (val, args) => standardFilters['strip_tags']!(val, args),
   'remove_tags': (val, args) => standardFilters['strip_tags']!(val, args),
+  'html_to_json': htmlToJsonFilter,
 
   // Additional Collection Filters
   'where': (val, args) {
@@ -332,7 +569,7 @@ final Map<String, KnapFilter> standardFilters = {
 
     return val.where((item) {
       if (item is Map) {
-        final itemVal = item[key];
+        final itemVal = _resolveNestedPath(item, key);
         if (hasExpected) {
           if (expected == null) return itemVal == null;
           return itemVal?.toString() == expected.toString();
@@ -345,12 +582,13 @@ final Map<String, KnapFilter> standardFilters = {
   'map': (val, args) {
     if (val is! Iterable || args.isEmpty) return val;
     final key = args[0]?.toString() ?? '';
-    return val.map((item) {
-      if (item is Map) {
-        return item[key];
-      }
-      return null;
-    }).toList();
+    final arrowMatch = RegExp(r'^\s*(\w+)\s*=>\s*(.+)$').firstMatch(key);
+    if (arrowMatch != null) {
+      final argName = arrowMatch.group(1)!;
+      final expr = arrowMatch.group(2)!;
+      return val.map((item) => _evaluateArrowItem(item, argName, expr)).toList();
+    }
+    return val.map((item) => _resolveNestedPath(item, key)).toList();
   },
   'compact': (val, args) {
     if (val is! Iterable) return val;
@@ -378,7 +616,9 @@ final Map<String, KnapFilter> standardFilters = {
     if (val == null) return 0;
     final number = val is num ? val.toDouble() : double.tryParse(val.toString());
     if (number == null) return val;
-    final decimals = args.isNotEmpty && args[0] is num ? (args[0] as num).toInt() : 0;
+    final decimals = args.isNotEmpty && args[0] is num
+        ? (args[0] as num).toInt()
+        : 0;
     if (decimals <= 0) {
       return number.round();
     }
@@ -388,7 +628,9 @@ final Map<String, KnapFilter> standardFilters = {
     if (val == null) return '';
     final numVal = val is num ? val : num.tryParse(val.toString());
     if (numVal == null) return val.toString();
-    final decimals = args.isNotEmpty && args[0] is num ? (args[0] as num).toInt() : null;
+    final decimals = args.isNotEmpty && args[0] is num
+        ? (args[0] as num).toInt()
+        : null;
 
     String str;
     if (decimals != null) {
@@ -441,7 +683,9 @@ final Map<String, KnapFilter> standardFilters = {
     final operation = args[0]?.toString().trim() ?? '';
     if (operation.isEmpty) return numVal;
 
-    final operator = operation.startsWith('**') ? '**' : operation.substring(0, 1);
+    final operator = operation.startsWith('**')
+        ? '**'
+        : operation.substring(0, 1);
     final valueStr = operation.substring(operator.length).trim();
     final operand = double.tryParse(valueStr);
     if (operand == null) return numVal;
@@ -580,7 +824,10 @@ final Map<String, KnapFilter> standardFilters = {
       var rendered = tpl;
       if (item is Map) {
         for (final entry in item.entries) {
-          rendered = rendered.replaceAll('\${${entry.key}}', entry.value?.toString() ?? '');
+          rendered = rendered.replaceAll(
+            '\${${entry.key}}',
+            entry.value?.toString() ?? '',
+          );
         }
       } else {
         rendered = rendered.replaceAll('\${str}', item.toString());
@@ -620,7 +867,10 @@ final Map<String, KnapFilter> standardFilters = {
       final keptAttrs = <String>[];
       for (final attr in keepList) {
         if (attr == null || attr.isEmpty) continue;
-        final reg = RegExp('\\s$attr\\s*=\\s*("[^"]*"|\'[^\']*\')', caseSensitive: false);
+        final reg = RegExp(
+          '\\s$attr\\s*=\\s*("[^"]*"|\'[^\']*\')',
+          caseSensitive: false,
+        );
         final m = reg.firstMatch(matchedText);
         if (m != null) keptAttrs.add(m.group(0)!.trim());
       }
@@ -634,7 +884,9 @@ final Map<String, KnapFilter> standardFilters = {
     return html.replaceAllMapped(RegExp(r'<(\w+)\s+([^>]*?)>'), (match) {
       final tag = match.group(1)!;
       final attrsStr = match.group(2)!;
-      final attrRegex = RegExp(r"""([a-zA-Z0-9_:-]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?""");
+      final attrRegex = RegExp(
+        r"""([a-zA-Z0-9_:-]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?""",
+      );
       final kept = <String>[];
       for (final m in attrRegex.allMatches(attrsStr)) {
         final attrName = m.group(1)!.toLowerCase();
@@ -654,7 +906,11 @@ final Map<String, KnapFilter> standardFilters = {
     final openRegex = RegExp('<$sourceTag(\\s+[^>]*?)?>', caseSensitive: false);
     final closeRegex = RegExp('</$sourceTag>', caseSensitive: false);
     return html
-        .replaceAllMapped(openRegex, (m) => targetTag.isNotEmpty ? '<$targetTag${m.group(1) ?? ''}>' : '')
+        .replaceAllMapped(
+          openRegex,
+          (m) =>
+              targetTag.isNotEmpty ? '<$targetTag${m.group(1) ?? ''}>' : '',
+        )
         .replaceAll(closeRegex, targetTag.isNotEmpty ? '</$targetTag>' : '');
   },
 };
