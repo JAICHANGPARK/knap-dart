@@ -5,6 +5,15 @@ typedef KnapFilter = Object? Function(Object? value, List<Object?> args);
 typedef KnapAsyncFilter = Future<Object?> Function(Object? value, List<Object?> args);
 
 /// A registry that stores and resolves synchronous and asynchronous Knap filters.
+///
+/// Register custom synchronous or asynchronous filters to extend template
+/// transformations:
+///
+/// ```dart
+/// final registry = FilterRegistry()
+///   ..register('shout', (val, args) => '${val?.toString().toUpperCase()}!')
+///   ..registerAsync('fetch_tag', (val, args) async => '#$val');
+/// ```
 class FilterRegistry {
   final Map<String, KnapFilter> _syncFilters = {};
   final Map<String, KnapAsyncFilter> _asyncFilters = {};
@@ -16,12 +25,12 @@ class FilterRegistry {
     }
   }
 
-  /// Registers a synchronous filter with the given [name].
+  /// Registers a synchronous [filter] with the given [name].
   void register(String name, KnapFilter filter) {
     _syncFilters[name] = filter;
   }
 
-  /// Registers an asynchronous filter with the given [name].
+  /// Registers an asynchronous [filter] with the given [name].
   void registerAsync(String name, KnapAsyncFilter filter) {
     _asyncFilters[name] = filter;
   }

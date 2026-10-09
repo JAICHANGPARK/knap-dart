@@ -2,11 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_knap/flutter_knap.dart';
 
+/// Launches the interactive Knap Flutter Playground application.
 void main() {
   runApp(const KnapPlaygroundApp());
 }
 
+/// Root application widget for the interactive Knap Flutter Playground.
 class KnapPlaygroundApp extends StatelessWidget {
+  /// Creates a [KnapPlaygroundApp].
   const KnapPlaygroundApp({super.key});
 
   @override
@@ -26,7 +29,9 @@ class KnapPlaygroundApp extends StatelessWidget {
   }
 }
 
+/// Interactive split-view playground screen for editing Knap templates and JSON data.
 class KnapPlaygroundScreen extends StatefulWidget {
+  /// Creates a [KnapPlaygroundScreen].
   const KnapPlaygroundScreen({super.key});
 
   @override

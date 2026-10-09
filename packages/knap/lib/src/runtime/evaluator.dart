@@ -4,6 +4,13 @@ import '../limits/render_limits.dart';
 import 'context.dart';
 
 /// The AST tree interpreter that evaluates Knap templates within an execution [context].
+///
+/// ```dart
+/// final context = KnapContext(variables: {'title': 'Knap'});
+/// final evaluator = KnapEvaluator(context);
+/// final ast = KnapParser(KnapLexer('Hello {{ title }}').scanTokens()).parse();
+/// print(evaluator.evaluate(ast)); // Hello Knap
+/// ```
 class KnapEvaluator {
   /// The execution context managing variable scoping and filter resolution.
   final KnapContext context;
@@ -19,7 +26,7 @@ class KnapEvaluator {
   // Synchronous Evaluation
   // ----------------------------------------------------------------------
 
-  /// Evaluates an AST node list synchronously and returns the rendered template string.
+  /// Evaluates an AST [nodes] list synchronously and returns the rendered template string.
   String evaluate(List<KnapNode> nodes) {
     final buffer = StringBuffer();
     for (final node in nodes) {

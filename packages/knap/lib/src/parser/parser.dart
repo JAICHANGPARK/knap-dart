@@ -4,6 +4,11 @@ import '../limits/render_limits.dart';
 import '../tokens/token.dart';
 
 /// A recursive descent parser that converts a stream of [Token]s into an abstract syntax tree of [KnapNode]s.
+///
+/// ```dart
+/// final tokens = KnapLexer('{% if ok %}Yes{% endif %}').scanTokens();
+/// final ast = KnapParser(tokens).parse();
+/// ```
 class KnapParser {
   /// The scanned token stream to parse.
   final List<Token> tokens;

@@ -1,8 +1,15 @@
 import '../errors/exceptions.dart';
 
-/// Parses comma-delimited CSV text into a list of row maps keyed by header column names.
+/// Parses comma-delimited CSV [input] into a list of row maps keyed by header column names.
 ///
-/// Supports quoted fields, escaped quotes (`""`), and embedded newlines, matching upstream `obsidianmd/knap`.
+/// Supports UTF-8 BOM, quoted fields, escaped quotes (`""`), and embedded
+/// newlines, matching upstream `obsidianmd/knap`. Throws a
+/// [KnapSyntaxException] labeled with [source] if the CSV structure is invalid.
+///
+/// ```dart
+/// final rows = parseCsv('title,author\n"Knap Guide",Obsidian');
+/// print(rows.first['title']); // Knap Guide
+/// ```
 List<Map<String, String>> parseCsv(String input, {String source = 'csv'}) {
   final text = input.startsWith('\uFEFF') ? input.substring(1) : input;
   final rows = <List<String>>[];

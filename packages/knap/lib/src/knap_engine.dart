@@ -10,7 +10,20 @@ import 'parser/parser.dart';
 import 'runtime/context.dart';
 import 'runtime/evaluator.dart';
 
-/// Applies a pipe-separated [filterChain] (such as `"trim | upper"`) to [value] using [registry].
+/// Applies a pipe-separated [filterChain] to [value] using [registry].
+///
+/// Useful when transforming a value through Knap filters outside a full
+/// template string:
+///
+/// ```dart
+/// final engine = KnapEngine.standard();
+/// final slug = applyFiltersWithRegistry(
+///   '  Hello World!  ',
+///   'trim | slug',
+///   engine.filterRegistry,
+/// );
+/// print(slug); // hello-world
+/// ```
 Object? applyFiltersWithRegistry(
   Object? value,
   String filterChain,
@@ -42,6 +55,17 @@ Object? applyFiltersWithRegistry(
 }
 
 /// A compiled, reusable Knap template holding the parsed abstract syntax tree ([ast]).
+///
+/// Compile a template once via [KnapEngine.compile] and render it across
+/// multiple data payloads without re-tokenizing or re-parsing:
+///
+/// ```dart
+/// final engine = KnapEngine.standard();
+/// final template = engine.compile('Hello, {{ name | capitalize }}!');
+///
+/// print(template.render(data: {'name': 'alice'}, filters: engine.filterRegistry));
+/// print(template.render(data: {'name': 'bob'}, filters: engine.filterRegistry));
+/// ```
 class KnapTemplate {
   /// The original source template string.
   final String source;
@@ -88,6 +112,19 @@ class KnapTemplate {
 }
 
 /// The main entry point for compiling, validating, and rendering Knap Markdown templates.
+///
+/// Use [KnapEngine.standard] to create an instance pre-configured with all
+/// built-in standard, Markdown, and HTML filters:
+///
+/// ```dart
+/// final engine = KnapEngine.standard();
+/// final output = engine.render(
+///   '{% for item in items %}- {{ item | bold }}\n{% endfor %}',
+///   data: {
+///     'items': ['First', 'Second'],
+///   },
+/// );
+/// ```
 class KnapEngine {
   /// The filter registry containing all active filters for this engine instance.
   final FilterRegistry filterRegistry;
@@ -114,7 +151,7 @@ class KnapEngine {
     }
   }
 
-  /// Creates an engine pre-configured with all standard, HTML, web clipper, and markdown filters.
+  /// Creates an engine pre-configured with all [standardFilters], [markdownFilters], and [htmlFilters].
   factory KnapEngine.standard({RenderLimits limits = defaultRenderLimits}) {
     return KnapEngine(
       filters: {
@@ -127,6 +164,9 @@ class KnapEngine {
   }
 
   /// Parses and compiles a template [source] string into a reusable [KnapTemplate].
+  ///
+  /// Throws a [KnapSyntaxException] if the template has malformed syntax, or a
+  /// [KnapLimitException] if [source] exceeds [RenderLimits.maxTemplateLength].
   KnapTemplate compile(String source, {RenderLimits? limits}) {
     final effectiveLimits = limits ?? this.limits;
     effectiveLimits.validate();
@@ -141,6 +181,15 @@ class KnapEngine {
   }
 
   /// Compiles and renders a template [source] synchronously with provided [data].
+  ///
+  /// ```dart
+  /// final engine = KnapEngine.standard();
+  /// final result = engine.render(
+  ///   '{{ title | h1 }}',
+  ///   data: {'title': 'Release Notes'},
+  /// );
+  /// // '# Release Notes'
+  /// ```
   String render(
     String source, {
     Map<String, Object?>? data,
@@ -158,6 +207,9 @@ class KnapEngine {
   }
 
   /// Compiles and renders a template [source] asynchronously with provided [data].
+  ///
+  /// Supports asynchronous filters registered via [FilterRegistry.registerAsync]
+  /// as well as [asyncVariableResolver].
   Future<String> renderAsync(
     String source, {
     Map<String, Object?>? data,
@@ -177,6 +229,16 @@ class KnapEngine {
   }
 
   /// Renders a template [source] without throwing, returning a structured [TemplateResult].
+  ///
+  /// Captures any [KnapException] or unknown filter references into
+  /// [TemplateResult.errors]:
+  ///
+  /// ```dart
+  /// final engine = KnapEngine.standard();
+  /// final result = engine.renderWithDiagnostics('{{ x | unknown_filter }}');
+  /// print(result.isSuccess); // false
+  /// print(result.errors.first.code); // TemplateErrorCode.unknownFilter
+  /// ```
   TemplateResult renderWithDiagnostics(
     String source, {
     Map<String, Object?>? data,
@@ -233,6 +295,14 @@ class KnapEngine {
   }
 
   /// Statically validates template [source] for syntax errors, limit violations, and unknown filters.
+  ///
+  /// Returns an empty list if the template is valid:
+  ///
+  /// ```dart
+  /// final engine = KnapEngine.standard();
+  /// final errors = engine.validate('Hello {{ name | upper }}');
+  /// assert(errors.isEmpty);
+  /// ```
   List<TemplateError> validate(String source, {RenderLimits? limits}) {
     try {
       final template = compile(source, limits: limits);

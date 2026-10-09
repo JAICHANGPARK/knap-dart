@@ -2,6 +2,19 @@ import '../errors/exceptions.dart';
 import '../tokens/token.dart';
 
 /// Resource and complexity limits enforced during template parsing and rendering.
+///
+/// Configure custom limits to guard against untrusted or overly complex
+/// templates:
+///
+/// ```dart
+/// final engine = KnapEngine.standard(
+///   limits: const RenderLimits(
+///     maxTemplateLength: 50000,
+///     maxOperations: 5000,
+///     maxDepth: 32,
+///   ),
+/// );
+/// ```
 class RenderLimits {
   /// Maximum allowed character length of the input template string.
   final int maxTemplateLength;
@@ -31,7 +44,7 @@ class RenderLimits {
     this.allowRegex = true,
   });
 
-  /// Validates that all configured limits are positive safe integers and `maxDepth <= 256`.
+  /// Validates that all configured limits are positive safe integers and [maxDepth] is at most `256`.
   void validate() {
     if (maxTemplateLength < 1) {
       throw const KnapLimitException('Invalid maxTemplateLength limit');

@@ -5,7 +5,18 @@ import 'package:knap/knap.dart';
 ///
 /// Holds the template string, evaluation data context, and the latest
 /// rendered markdown output or evaluation error. Listeners are notified
-/// whenever the template, data, or output changes.
+/// whenever the template, data, or output changes:
+///
+/// ```dart
+/// final controller = KnapTemplateController(
+///   initialTemplate: 'Hello {{ name | bold }}!',
+///   initialData: {'name': 'Flutter'},
+/// );
+/// print(controller.output); // Hello **Flutter**!
+///
+/// controller.update(data: {'name': 'Dart'});
+/// print(controller.output); // Hello **Dart**!
+/// ```
 class KnapTemplateController extends ChangeNotifier {
   /// The template engine used to evaluate and render templates.
   final KnapEngine engine;

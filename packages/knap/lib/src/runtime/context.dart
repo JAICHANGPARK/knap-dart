@@ -52,6 +52,15 @@ class KnapScope {
 }
 
 /// The execution context for template rendering, managing variable scopes and filter execution.
+///
+/// ```dart
+/// final context = KnapContext(
+///   variables: {'user': {'name': 'Ada'}},
+///   variableResolver: (name) => 'fallback:$name',
+/// );
+/// print(context.resolve('user')); // {name: Ada}
+/// print(context.resolve('missing')); // fallback:missing
+/// ```
 class KnapContext {
   KnapScope _currentScope;
 

@@ -2,6 +2,11 @@ import '../errors/exceptions.dart';
 import '../tokens/token.dart';
 
 /// A scanner that transforms Knap template strings into a stream of lexical [Token]s.
+///
+/// ```dart
+/// final lexer = KnapLexer('Hello {{ name | upper }}');
+/// final tokens = lexer.scanTokens();
+/// ```
 class KnapLexer {
   /// The raw template source text being tokenized.
   final String source;

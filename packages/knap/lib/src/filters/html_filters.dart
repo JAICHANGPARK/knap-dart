@@ -95,7 +95,14 @@ List<Map<String, Object?>> _parseHtmlNodes(String html) {
   return rootChildren;
 }
 
-/// Converts an HTML string into a JSON tree of `{ type: 'element' | 'text', ... }` objects.
+/// Converts an HTML string [val] into a JSON tree of element and text objects.
+///
+/// Unused filter [args] are ignored.
+///
+/// ```dart
+/// final jsonStr = htmlToJsonFilter('<p class="lead">Hello</p>', const []);
+/// // {"type":"element","tag":"p","attributes":{"class":"lead"},"children":[{"type":"text","content":"Hello"}]}
+/// ```
 String htmlToJsonFilter(Object? val, List<Object?> args) {
   final input = val?.toString() ?? '';
   if (input.trim().isEmpty) return '[]';

@@ -17,7 +17,18 @@ typedef KnapWidgetBuilder = Widget Function(
 ///
 /// Either [controller] or [template] must be provided. If a [controller] is passed,
 /// it will be listened to for changes. Otherwise, an internal [KnapTemplateController]
-/// is created and managed automatically.
+/// is created and managed automatically:
+///
+/// ```dart
+/// KnapBuilder(
+///   template: 'Hello, {{ user | upper }}!',
+///   data: const {'user': 'Alice'},
+///   builder: (context, renderedMarkdown, error) {
+///     if (error != null) return Text('Error: $error');
+///     return Text(renderedMarkdown);
+///   },
+/// )
+/// ```
 class KnapBuilder extends StatefulWidget {
   /// The template string to evaluate when managing an internal controller.
   final String? template;

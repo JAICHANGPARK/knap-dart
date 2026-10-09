@@ -147,6 +147,22 @@ Object? _evaluateArrowValue(Object? item, String argName, String expr) {
 }
 
 /// The built-in library of standard string, collection, math, date, and utility filters.
+///
+/// Includes string casing (`upper`, `lower`, `camel`, `kebab`, `snake`),
+/// collection transforms (`map`, `where`, `sort`, `unique`, `join`, `slice`),
+/// date formatting (`date`, `date_modify`, `duration`), and YAML/JSON
+/// serialization (`yaml`, `yaml_property`, `json`):
+///
+/// ```dart
+/// final names = standardFilters['map']!(
+///   [
+///     {'name': 'Alice'},
+///     {'name': 'Bob'},
+///   ],
+///   ['item => item.name'],
+/// );
+/// // ['Alice', 'Bob']
+/// ```
 final Map<String, KnapFilter> standardFilters = {
   // String filters
   'trim': (val, args) => val?.toString().trim() ?? '',

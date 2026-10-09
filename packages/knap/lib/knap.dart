@@ -1,6 +1,27 @@
-/// Knap is a simple, safe template language that turns data into Markdown
-/// using variables, filters, and logic.
-library knap;
+/// A simple, safe template language that turns data into Markdown using
+/// variables, filters, and control flow logic.
+///
+/// Use [KnapEngine.standard] to render templates with all 91 built-in
+/// string, collection, date, HTML, and Obsidian Markdown filters:
+///
+/// @docImport 'src/knap_engine.dart';
+///
+/// ```dart
+/// import 'package:knap/knap.dart';
+///
+/// void main() {
+///   final engine = KnapEngine.standard();
+///   final markdown = engine.render(
+///     '# {{ title | trim }}\nTags: {{ tags | wikilink | join:", " }}',
+///     data: {
+///       'title': '  Obsidian Web Clipper  ',
+///       'tags': ['knowledge-base', 'markdown'],
+///     },
+///   );
+///   print(markdown);
+/// }
+/// ```
+library;
 
 export 'src/ast/ast.dart';
 export 'src/cli/csv_parser.dart';

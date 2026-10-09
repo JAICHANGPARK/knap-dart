@@ -227,6 +227,19 @@ int _longestBacktickRun(String str) {
 }
 
 /// The built-in library of Markdown, HTML, and Obsidian syntax generation filters.
+///
+/// Includes `wikilink`, `embed`, `link`, `list`, `task_list`, `callout`,
+/// `blockquote`, `table`, `table_pretty`, `code`, `footnote`, `strip_md`, and
+/// heading/inline formatting filters:
+///
+/// ```dart
+/// final callout = markdownFilters['callout']!(
+///   'Important takeaway',
+///   ['tip', 'Key Point', true],
+/// );
+/// // > [!tip]- Key Point
+/// // > Important takeaway
+/// ```
 final Map<String, KnapFilter> markdownFilters = {
   // Wikilink: [[Target]] or [[Target|Alias]]
   'wikilink': (val, args) => _formatWikiReference(val, args, ''),

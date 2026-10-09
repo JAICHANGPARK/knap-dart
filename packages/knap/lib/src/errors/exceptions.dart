@@ -1,3 +1,7 @@
+/// @docImport '../knap_engine.dart';
+/// @docImport '../limits/render_limits.dart';
+library;
+
 import '../tokens/token.dart';
 
 /// Machine-readable error codes emitted during template validation or rendering.
@@ -17,7 +21,7 @@ enum TemplateErrorCode {
   /// Filter threw an exception during execution.
   filterError('FILTER_ERROR'),
 
-  /// Resource or complexity limit exceeded (`RenderLimits`).
+  /// Resource or complexity limit exceeded ([RenderLimits]).
   limitExceeded('LIMIT_EXCEEDED'),
 
   /// General runtime evaluation error.
@@ -86,7 +90,7 @@ class TemplateWarning {
   /// Name of the filter that reported the warning.
   final String filter;
 
-  /// Creates a [TemplateWarning] with [message], [filter], and optional location/code.
+  /// Creates a [TemplateWarning] with [message], [filter], and optional location and [code].
   const TemplateWarning({
     required this.message,
     required this.filter,
@@ -100,8 +104,21 @@ class TemplateWarning {
 }
 
 /// The non-throwing result of rendering a Knap template, containing output, errors, and warnings.
+///
+/// Returned by [KnapEngine.renderWithDiagnostics]:
+///
+/// ```dart
+/// final engine = KnapEngine.standard();
+/// final result = engine.renderWithDiagnostics(
+///   'Hello {{ name | upper }}',
+///   data: {'name': 'world'},
+/// );
+/// if (result.isSuccess) {
+///   print(result.output); // Hello WORLD
+/// }
+/// ```
 class TemplateResult {
-  /// The rendered Markdown output string (or empty string if fatal errors occurred).
+  /// The rendered Markdown output string, or an empty string if fatal errors occurred.
   final String output;
 
   /// Any syntax, validation, limit, or runtime errors encountered.
@@ -122,6 +139,9 @@ class TemplateResult {
 }
 
 /// Base exception class for all Knap template errors.
+///
+/// Subclasses include [KnapSyntaxException], [KnapEvaluationException], and
+/// [KnapLimitException].
 abstract class KnapException implements Exception {
   /// The descriptive error message.
   final String message;

@@ -8,7 +8,17 @@ import 'knap_builder.dart';
 /// the resulting markdown directly to the screen using `flutter_markdown`.
 ///
 /// If an evaluation error occurs, an error card is shown by default or custom
-/// UI is rendered using [errorBuilder].
+/// UI is rendered using [errorBuilder]:
+///
+/// ```dart
+/// KnapMarkdownView(
+///   template: '## {{ title }}\n{{ items | list:"task" }}',
+///   data: const {
+///     'title': 'Checklist',
+///     'items': ['Write docs', 'Run tests'],
+///   },
+/// )
+/// ```
 class KnapMarkdownView extends StatelessWidget {
   /// The template string to evaluate when managing an internal controller.
   final String? template;
