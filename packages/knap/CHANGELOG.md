@@ -1,3 +1,31 @@
+## 2026.10.9
+
+- **100% Upstream (`obsidianmd/knap`) Parity**:
+  - **6 New Built-in Filters**: `embed` (`![[target|alias]]`), `table_pretty` (column-width padded Markdown tables), `truncatewords`, `yaml_property`, `stripmd` alias, and `html_to_json` (plus exported `htmlFilters` map).
+  - **Filter Parameter Enhancements**:
+    - `bold:_` and `italic:_` underscore style markers.
+    - `list:numbered`, `list:task`, `list:numbered-task`, and nested array indentation.
+    - `yaml` multi-line block rendering for collections and `yaml:flow` inline mode.
+    - `safe_name:windows` (including reserved device names), `safe_name:mac`, and `safe_name:linux`.
+    - `map` arrow expressions (`map:item => item.name`, `map:x => "${x.title}"`, object projections).
+    - `sort` by object property and direction (`sort:"age":"desc"`).
+    - `replace` regular expression literals (`replace:"/\\d+/g":"#"`) and multi-pair replacements.
+    - `footnote` definitions from `Map` and `List` values.
+    - `callout` fold state parameter (`true` for `-`, `false` for `+`).
+    - Auto-incrementing backtick fences in `code` and `code_block` when content contains backticks.
+  - **Lexer, Parser & Runtime Enhancements**:
+    - Symbolic logical operators (`&&`, `||`), arrow token (`=>`), negative numeric literals, and CSS selector literals (`selector:`, `selectorHtml:`).
+    - Parenthesized filter arguments (`replace:(a ?? "x"):"y"`, `slice:(0, 5)`).
+    - Support for `{{key}}`-wrapped data map keys, dynamic `variableResolver` / `asyncVariableResolver`, JSON array strings in `{% for %}`, and `<iterator>_index` loop variables.
+  - **Resource Protection & Diagnostics API**:
+    - Added `RenderLimits`, `defaultRenderLimits`, `RenderBudget`, and `KnapLimitException`.
+    - Added `validate`, `validateFilters`, `validateVariables`, `renderWithDiagnostics` (`TemplateResult`), `renderOrThrow`, and `applyFiltersWithRegistry`.
+  - **CLI Expansion (`bin/knap.dart`)**:
+    - Added `knap validate`, `knap batch` (with RFC 4180 `parseCsv`), and `knap help` (`filters`, `syntax`, `examples`).
+- **Quality & Documentation**:
+  - Achieved **100.00% line test coverage** across all 14 library files.
+  - Added Effective Dart (`///`) documentation comments with executable code examples across all public APIs.
+
 ## 2026.9.26
 
 - **Upstream Parity & Operators**:

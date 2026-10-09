@@ -71,7 +71,7 @@ void main(List<String> arguments) {
     }
 
     if (results['version'] == true) {
-      stdout.writeln('Knap Dart 2026.9.25');
+      stdout.writeln('Knap Dart 2026.10.9');
       exit(0);
     }
 
