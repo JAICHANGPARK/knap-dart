@@ -1,3 +1,9 @@
+## 2026.10.17
+
+- Upgraded dependency to `knap ^2026.10.17` with modularized filter architecture and fuzzy filter typo suggestions.
+- Full 100.00% line test coverage maintained across all controllers and widgets.
+- 0 analyzer issues (`flutter analyze` clean).
+
 ## 2026.10.16
 
 - Upgraded dependency to `knap ^2026.10.16` featuring 100% upstream `obsidianmd/knap` test suite passing conformance (188/188 fixtures).

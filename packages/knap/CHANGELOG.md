@@ -1,3 +1,22 @@
+## 2026.10.17
+
+- **Architecture & Maintainability Refactoring**:
+  - Modularized standard filters from a single monolithic file into cohesive domain libraries under `lib/src/filters/`:
+    - `string_filters.dart`: casing, sanitization, regex replace, safe name, HTML tags and attributes cleaning.
+    - `collection_filters.dart`: `map`, `where`, `sort`, `slice`, `nth`, `unique`, `merge`, `compact`, etc.
+    - `date_filters.dart`: ISO 8601 Day.js parser, date modification, duration formatting.
+    - `math_filters.dart`: math expressions (`calc`), `round`, `number_format`, `sum`.
+    - `yaml_filters.dart`: YAML formatting, JSON encode/decode, template interpolation.
+    - `standard_filters.dart`: aggregates and re-exports all sub-libraries (reduced from 1,330 lines to 40 lines).
+  - All repository files are now cleanly structured under 720 lines (most between 100 and 420 lines).
+- **Filter Typo Suggestions**:
+  - Added Levenshtein distance fuzzy matching in `KnapEngine.validateFilters` to suggest close matching filter names when an unknown filter is encountered (e.g. `Did you mean "upper"?`).
+  - Added `FilterRegistry.names` getter exposing all registered sync and async filter names.
+- **Quality & Coverage**:
+  - Maintained **100.00% line test coverage** across all 19 library files (2,693 / 2,693 lines covered).
+  - 309 tests passing including 188 / 188 upstream `render.json` fixtures.
+  - 0 analyzer issues (`dart analyze` clean).
+
 ## 2026.10.16
 
 - **100% Upstream Test Suite Conformance**:
