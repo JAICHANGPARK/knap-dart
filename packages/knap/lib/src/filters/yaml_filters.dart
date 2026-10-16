@@ -36,7 +36,15 @@ String _yamlBlock(Object? value) {
   return _yamlFlow(value);
 }
 
-/// YAML and JSON serialization filters.
+/// YAML and JSON serialization and parsing filters.
+///
+/// Provides structured object encoding and decoding including `yaml`,
+/// `yaml_property`, `json`, `parse_json`, `template`, and `object`.
+///
+/// ```dart
+/// final yamlText = yamlFilters['yaml']!({'title': 'Note'}, const []);
+/// // 'title: Note'
+/// ```
 final Map<String, KnapFilter> yamlFilters = {
   'yaml': (val, args) {
     if (val == null) return 'null';

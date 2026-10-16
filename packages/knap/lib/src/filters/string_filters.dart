@@ -13,6 +13,15 @@ List<String> _splitWords(String str) {
 }
 
 /// Standard string manipulation, casing, and sanitation filters.
+///
+/// Contains text transformation filters including `trim`, `upper`, `lower`,
+/// `capitalize`, `title`, `slug`, `camel`, `snake`, `kebab`, `pascal`,
+/// `safe_name`, `truncate`, and HTML attribute cleaning.
+///
+/// ```dart
+/// final trimmed = stringFilters['trim']!('  hello  ', const []);
+/// // 'hello'
+/// ```
 final Map<String, KnapFilter> stringFilters = {
   'trim': (val, args) => val?.toString().trim() ?? '',
   'upper': (val, args) => val?.toString().toUpperCase() ?? '',

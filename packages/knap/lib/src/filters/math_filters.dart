@@ -3,6 +3,14 @@ import '../runtime/context.dart';
 import 'filter.dart';
 
 /// Standard math and numeric calculation filters.
+///
+/// Provides mathematical expression evaluation (`calc`), numeric rounding
+/// (`round`), locale formatting (`number_format`), and collection summation (`sum`).
+///
+/// ```dart
+/// final result = mathFilters['calc']!(10, ['* 2 + 5']);
+/// // 25
+/// ```
 final Map<String, KnapFilter> mathFilters = {
   'sum': (val, args) {
     if (val is! Iterable) return 0;

@@ -63,6 +63,14 @@ Object? _evaluateArrowItem(Object? item, String argName, String rawExpr) {
 }
 
 /// Collection manipulation, filtering, sorting, and projection filters.
+///
+/// Contains iterable operations including `map`, `where`, `sort`, `slice`,
+/// `nth`, `unique`, `merge`, `compact`, `first`, `last`, `join`, and `reverse`.
+///
+/// ```dart
+/// final firstItem = collectionFilters['first']!(['apple', 'banana'], const []);
+/// // 'apple'
+/// ```
 final Map<String, KnapFilter> collectionFilters = {
   'default': (val, args) {
     final fallback = args.isNotEmpty ? args[0] : '';

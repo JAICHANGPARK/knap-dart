@@ -198,7 +198,16 @@ int? _parseIsoDurationToSeconds(String str) {
   return totalSec.round();
 }
 
-/// Date and duration filters for formatting, shifting, and parsing timestamps.
+/// Date formatting, modification, and duration calculation filters.
+///
+/// Implements Day.js compatible token formatting (`YYYY`, `MM`, `DD`, `HH`,
+/// `mm`, `ss`, `SSS`, `Z`, `ZZ`), relative date modification (`date_modify`),
+/// and human-readable time durations (`duration`).
+///
+/// ```dart
+/// final formatted = dateFilters['date']!('2026-10-17T00:00:00Z', ['YYYY-MM-DD']);
+/// // '2026-10-17'
+/// ```
 final Map<String, KnapFilter> dateFilters = {
   'date': (val, args) {
     if (val == null) return '';
