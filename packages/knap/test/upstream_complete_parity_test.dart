@@ -542,6 +542,11 @@ void main() {
       final filterErrors = engine.validate('{% if ok %}{{ x | no_such_filter }}{% elif b %}{{ y }}{% else %}{% for i in list %}{{ i }}{% else %}empty{% endfor %}{% set z = 1 %}{% endif %}');
       expect(filterErrors, hasLength(1));
       expect(filterErrors.first.code, TemplateErrorCode.unknownFilter);
+      expect(filterErrors.first.message, 'Unknown filter "no_such_filter"');
+
+      final typoErrors = engine.validate('{{ x | uper }}');
+      expect(typoErrors, hasLength(1));
+      expect(typoErrors.first.message, contains('Did you mean "upper"?'));
 
       final diagBadFilter = engine.renderWithDiagnostics('{{ x | unknown_f }}');
       expect(diagBadFilter.isSuccess, isFalse);

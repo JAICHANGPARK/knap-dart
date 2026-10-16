@@ -55,4 +55,7 @@ class FilterRegistry {
 
   /// An unmodifiable view of all registered synchronous filters.
   Map<String, KnapFilter> get allSync => Map.unmodifiable(_syncFilters);
+
+  /// All registered filter names (both synchronous and asynchronous).
+  Iterable<String> get names => {..._syncFilters.keys, ..._asyncFilters.keys};
 }

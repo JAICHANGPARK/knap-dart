@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'ast/ast.dart';
 import 'errors/exceptions.dart';
 import 'filters/filter.dart';
@@ -320,6 +321,47 @@ class KnapEngine {
     }
   }
 
+  int _levenshtein(String a, String b) {
+    if (a == b) return 0;
+    if (a.isEmpty) return b.length;
+    if (b.isEmpty) return a.length;
+
+    var prev = List<int>.generate(b.length + 1, (i) => i);
+    var curr = List<int>.filled(b.length + 1, 0);
+
+    for (var i = 0; i < a.length; i++) {
+      curr[0] = i + 1;
+      for (var j = 0; j < b.length; j++) {
+        final cost = a[i] == b[j] ? 0 : 1;
+        curr[j + 1] = math.min(
+          curr[j] + 1,
+          math.min(prev[j + 1] + 1, prev[j] + cost),
+        );
+      }
+      final temp = prev;
+      prev = curr;
+      curr = temp;
+    }
+    return prev[b.length];
+  }
+
+  String _unknownFilterMessage(String name) {
+    String? bestMatch;
+    var bestDistance = 999999;
+    for (final known in filterRegistry.names) {
+      final distance = _levenshtein(name.toLowerCase(), known.toLowerCase());
+      if (distance < math.max(name.length, known.length) / 2 &&
+          distance < bestDistance) {
+        bestDistance = distance;
+        bestMatch = known;
+      }
+    }
+    if (bestMatch != null) {
+      return 'Unknown filter "$name". Did you mean "$bestMatch"?';
+    }
+    return 'Unknown filter "$name"';
+  }
+
   /// Validates that all filters referenced in [ast] are registered in [filterRegistry].
   List<TemplateError> validateFilters(List<KnapNode> ast) {
     final errors = <TemplateError>[];
@@ -348,7 +390,7 @@ class KnapEngine {
           if (!filterRegistry.has(filter.name)) {
             errors.add(
               TemplateError(
-                message: 'Unknown filter "${filter.name}"',
+                message: _unknownFilterMessage(filter.name),
                 code: TemplateErrorCode.unknownFilter,
               ),
             );
@@ -371,7 +413,7 @@ class KnapEngine {
               if (!filterRegistry.has(f.name)) {
                 errors.add(
                   TemplateError(
-                    message: 'Unknown filter "${f.name}"',
+                    message: _unknownFilterMessage(f.name),
                     code: TemplateErrorCode.unknownFilter,
                   ),
                 );
