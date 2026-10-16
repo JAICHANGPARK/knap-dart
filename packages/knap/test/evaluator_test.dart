@@ -36,7 +36,7 @@ C
       final output = engine.render(template, data: {
         'items': ['One', 'Two', 'Three'],
       });
-      expect(output, '1. One, 2. Two, 3. Three');
+      expect(output, '1. One, \n2. Two, \n3. Three');
     });
 
     test('supports renderAsync with async filters', () async {

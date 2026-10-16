@@ -102,7 +102,7 @@ void main() {
       final tplCompact = '{{ list | compact | join:"-" }}';
       expect(
         knap.render(tplCompact, data: {'list': ['a', '', null, 'b', false, 'c']}),
-        equals('a-b-c'),
+        equals('a-b-false-c'),
       );
 
       final tplSplit = '{{ "apple,banana,orange" | split:"," | first }}';
@@ -120,7 +120,7 @@ void main() {
       expect(knap.render(tplNumberFormat), equals('1,234,567.9'));
 
       final tplDuration = '{{ 3665 | duration }}';
-      expect(knap.render(tplDuration), equals('1h 1m 5s'));
+      expect(knap.render(tplDuration), equals('01:01:05'));
     });
 
     test('uri and json filters: encode_uri, decode_uri, parse_json', () {
@@ -146,7 +146,7 @@ void main() {
       final result = knap.render(tpl);
       expect(result, contains('![Logo](https://example.com/pic.png)'));
       expect(result, contains('[^ref1]'));
-      expect(result, contains('#header-name'));
+      expect(result, contains('#:~:text=Header%20Name'));
       expect(result, contains('> Important text'));
     });
 

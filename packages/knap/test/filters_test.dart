@@ -62,7 +62,7 @@ void main() {
     test('truncate and default filters', () {
       expect(
         engine.render('{{ text | truncate: 5 }}', data: {'text': 'Hello World'}),
-        'Hello...',
+        'Hell…',
       );
       expect(
         engine.render('{{ missing | default: "N/A" }}', data: {}),

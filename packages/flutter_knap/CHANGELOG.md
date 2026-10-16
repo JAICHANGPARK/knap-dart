@@ -1,3 +1,9 @@
+## 2026.10.16
+
+- Upgraded dependency to `knap ^2026.10.16` featuring 100% upstream `obsidianmd/knap` test suite passing conformance (188/188 fixtures).
+- Full 100.00% line test coverage maintained across all controllers and widgets.
+- 0 analyzer issues (`flutter analyze` clean).
+
 ## 2026.10.9
 
 - Updated dependency to `knap ^2026.10.9` with full upstream `obsidianmd/knap` parity (91 built-in filters, `RenderLimits`, and diagnostics APIs).

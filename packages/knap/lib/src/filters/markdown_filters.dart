@@ -77,7 +77,7 @@ String _renderMarkdownTable(
   if (!pretty) {
     final lines = <String>[
       '| ${normHeaders.join(' | ')} |',
-      '| ${normHeaders.map((_) => '---').join(' | ')} |',
+      '| ${normHeaders.map((_) => '-').join(' | ')} |',
       ...normRows.map((r) => '| ${r.join(' | ')} |'),
     ];
     return lines.join('\n');
@@ -186,7 +186,8 @@ String _formatTableData(
       }
       return _renderMarkdownTable(customHeaders, rows, pretty: pretty);
     }
-    return '';
+    final rows = list.map((e) => [e?.toString() ?? '']).toList();
+    return _renderMarkdownTable(['Value'], rows, pretty: pretty);
   }
 
   return '';
@@ -249,7 +250,15 @@ final Map<String, KnapFilter> markdownFilters = {
 
   // Standard Markdown Link: [text](url)
   'link': (val, args) {
-    final url = val?.toString().trim() ?? '';
+    if (val == null) return '';
+    if (val is List) {
+      final text = args.isNotEmpty ? args[0]?.toString() : null;
+      return val.map((url) => '[${text ?? url}]($url)').join('\n');
+    }
+    if (val is Map) {
+      return val.entries.map((e) => '[${e.value}](${e.key})').join('\n');
+    }
+    final url = val.toString().trim();
     if (url.isEmpty) return '';
     final text = args.isNotEmpty ? args[0]?.toString() ?? url : url;
     return '[$text]($url)';
@@ -311,8 +320,8 @@ final Map<String, KnapFilter> markdownFilters = {
   // > Body text
   'callout': (val, args) {
     final type = args.isNotEmpty
-        ? args[0]?.toString().toUpperCase() ?? 'NOTE'
-        : 'NOTE';
+        ? args[0]?.toString() ?? 'note'
+        : 'note';
     final title = args.length > 1 ? args[1]?.toString() : null;
     String foldState = '';
     if (args.length > 2 && args[2] != null) {
@@ -442,7 +451,16 @@ final Map<String, KnapFilter> markdownFilters = {
   },
   'stripmd': (val, args) => markdownFilters['strip_md']!(val, args),
   'image': (val, args) {
-    final url = val?.toString().trim() ?? '';
+    if (val == null) return '';
+    final defaultAlt =
+        args.isNotEmpty ? args[0]?.toString() ?? 'Illustration' : 'Illustration';
+    if (val is List) {
+      return val.map((item) => '![$defaultAlt]($item)').toList();
+    }
+    if (val is Map) {
+      return val.entries.map((e) => '![${e.value}](${e.key})').toList();
+    }
+    final url = val.toString().trim();
     if (url.isEmpty) return '';
     final alt = args.isNotEmpty ? args[0]?.toString() ?? '' : '';
     return '![$alt]($url)';
@@ -474,13 +492,46 @@ final Map<String, KnapFilter> markdownFilters = {
     return '[^$id]';
   },
   'fragment_link': (val, args) {
-    final str = val?.toString().trim() ?? '';
-    if (str.isEmpty) return '';
-    final slug = str
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9\s_-]'), '')
-        .replaceAll(RegExp(r'[\s_]+'), '-');
-    return '#$slug';
+    if (val == null) return '';
+    var linkText = 'link';
+    var url = '';
+    if (args.isNotEmpty) {
+      final firstArg = args[0]?.toString().trim() ?? '';
+      if (args.length > 1) {
+        linkText = firstArg;
+        url = args[1]?.toString().trim() ?? '';
+      } else if (firstArg.contains('://')) {
+        final colonIdx = firstArg.indexOf('://');
+        final prefixIdx = firstArg.lastIndexOf(':', colonIdx - 1);
+        if (prefixIdx != -1) {
+          linkText = firstArg.substring(0, prefixIdx);
+          url = firstArg.substring(prefixIdx + 1);
+        } else {
+          url = firstArg;
+        }
+      } else {
+        url = firstArg;
+      }
+    }
+
+    String createLink(String text) {
+      final words = text.trim().split(RegExp(r'\s+'));
+      String frag;
+      if (words.length <= 10) {
+        frag = words.map(Uri.encodeComponent).join('%20');
+      } else {
+        final start = words.take(5).map(Uri.encodeComponent).join('%20');
+        final end =
+            words.skip(words.length - 5).map(Uri.encodeComponent).join('%20');
+        frag = '$start,$end';
+      }
+      return '$text [$linkText]($url#:~:text=$frag)';
+    }
+
+    if (val is Iterable) {
+      return val.map((item) => createLink(item?.toString() ?? '')).toList();
+    }
+    return createLink(val.toString());
   },
 
   // Markdown Headings

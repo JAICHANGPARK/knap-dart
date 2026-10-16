@@ -42,16 +42,7 @@ Object? applyFiltersWithRegistry(
     filterRegistry: registry,
   );
   final evaluator = KnapEvaluator(context);
-  var current = value;
-  for (final filter in varNode.filters) {
-    final args = filter.arguments.map((arg) {
-      if (arg is LiteralExpression) return arg.value;
-      if (arg is VariableExpression) return arg.name;
-      return evaluator.evaluate([VariableNode(arg)]);
-    }).toList();
-    current = context.applyFilter(filter.name, current, args);
-  }
-  return current;
+  return evaluator.evaluateExpression(varNode.expression);
 }
 
 /// A compiled, reusable Knap template holding the parsed abstract syntax tree ([ast]).
@@ -249,20 +240,30 @@ class KnapEngine {
       final effectiveLimits = limits ?? this.limits;
       final template = compile(source, limits: effectiveLimits);
       final filterErrors = validateFilters(template.ast);
-      if (filterErrors.isNotEmpty) {
-        return TemplateResult(output: '', errors: filterErrors);
-      }
       final context = KnapContext(
         variables: data,
         filterRegistry: filterRegistry,
         variableResolver: variableResolver,
+        lenient: filterErrors.isNotEmpty,
       );
       final evaluator = KnapEvaluator(context, limits: effectiveLimits);
       final output = evaluator.evaluate(template.ast);
       return TemplateResult(
         output: output,
-        errors: const [],
+        errors: filterErrors,
         warnings: List.unmodifiable(context.warnings),
+      );
+    } on KnapSyntaxException catch (e) {
+      return TemplateResult(
+        output: '',
+        errors: [
+          TemplateError(
+            message: e.message,
+            line: e.location?.line ?? 1,
+            column: e.location?.column ?? 1,
+            code: TemplateErrorCode.parseError,
+          ),
+        ],
       );
     } on KnapException catch (e) {
       return TemplateResult(
@@ -322,12 +323,50 @@ class KnapEngine {
   /// Validates that all filters referenced in [ast] are registered in [filterRegistry].
   List<TemplateError> validateFilters(List<KnapNode> ast) {
     final errors = <TemplateError>[];
+
+    void visitExpr(Expression expr) {
+      switch (expr) {
+        case LiteralExpression():
+          break;
+        case ListLiteralExpression(:final elements):
+          for (final el in elements) {
+            visitExpr(el);
+          }
+        case VariableExpression():
+          break;
+        case PropertyAccessExpression(:final target):
+          visitExpr(target);
+        case IndexAccessExpression(:final target, :final index):
+          visitExpr(target);
+          visitExpr(index);
+        case UnaryOpExpression(:final operand):
+          visitExpr(operand);
+        case BinaryOpExpression(:final left, :final right):
+          visitExpr(left);
+          visitExpr(right);
+        case FilterExpression(:final target, :final filter):
+          if (!filterRegistry.has(filter.name)) {
+            errors.add(
+              TemplateError(
+                message: 'Unknown filter "${filter.name}"',
+                code: TemplateErrorCode.unknownFilter,
+              ),
+            );
+          }
+          visitExpr(target);
+          for (final arg in filter.arguments) {
+            visitExpr(arg);
+          }
+      }
+    }
+
     void visitNodes(List<KnapNode> nodes) {
       for (final node in nodes) {
         switch (node) {
           case TextNode():
             break;
-          case VariableNode(:final filters):
+          case VariableNode(:final expression, :final filters):
+            visitExpr(expression);
             for (final f in filters) {
               if (!filterRegistry.has(f.name)) {
                 errors.add(
@@ -339,20 +378,24 @@ class KnapEngine {
               }
             }
           case IfNode(
+              :final condition,
               :final thenBranch,
               :final elifBranches,
               :final elseBranch
             ):
+            visitExpr(condition);
             visitNodes(thenBranch);
             for (final elif in elifBranches) {
+              visitExpr(elif.condition);
               visitNodes(elif.body);
             }
             visitNodes(elseBranch);
-          case ForNode(:final body, :final elseBody):
+          case ForNode(:final collection, :final body, :final elseBody):
+            visitExpr(collection);
             visitNodes(body);
             visitNodes(elseBody);
-          case SetNode():
-            break;
+          case SetNode(:final value):
+            visitExpr(value);
         }
       }
     }
@@ -402,6 +445,11 @@ class KnapEngine {
         case BinaryOpExpression(:final left, :final right):
           visitExpr(left, scopeVars);
           visitExpr(right, scopeVars);
+        case FilterExpression(:final target, :final filter):
+          visitExpr(target, scopeVars);
+          for (final arg in filter.arguments) {
+            visitExpr(arg, scopeVars);
+          }
       }
     }
 

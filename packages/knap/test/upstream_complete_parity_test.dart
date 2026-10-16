@@ -80,7 +80,10 @@ void main() {
       expect(flatTable, contains('| C1 | C2 |'));
       expect(flatTable, contains('| a | b |'));
       expect(flatTable, contains('| c | d |'));
-      expect(markdownFilters['table']!(flatList, []), '');
+      expect(
+        markdownFilters['table']!(flatList, []),
+        '| Value |\n| - |\n| a |\n| b |\n| c |\n| d |',
+      );
       expect(markdownFilters['table']!(12345, []), '');
       expect(markdownFilters['table']!(null, []), '');
     });
@@ -88,7 +91,7 @@ void main() {
     test('truncate and truncatewords filters', () {
       final truncate = standardFilters['truncate']!;
       expect(truncate('hello world', [0]), '');
-      expect(truncate('hello world', ['5', '!']), 'hello!');
+      expect(truncate('hello world', ['5', '!']), 'hell!');
 
       final truncatewords = standardFilters['truncatewords']!;
       expect(truncatewords('one two three four', []), '');
@@ -199,11 +202,11 @@ void main() {
       // Callout fold states
       expect(
         engine.render('{{ "Body" | callout:("info", "Title", true) }}'),
-        '> [!INFO]- Title\n> Body',
+        '> [!info]- Title\n> Body',
       );
       expect(
         engine.render('{{ "Body" | callout:("info", "", false) }}'),
-        '> [!INFO]+\n> Body',
+        '> [!info]+\n> Body',
       );
 
       // Footnote with List and Map
@@ -348,7 +351,7 @@ void main() {
             {'name': 'B', 'age': 20},
           ],
         }),
-        '[{label: User, name: B}, {label: User, name: A}]',
+        '[{"label":"User","name":"B"},{"label":"User","name":"A"}]',
       );
       // Empty parens filter args
       expect(engine.render('{{ " hi " | trim:() }}'), 'hi');
@@ -398,14 +401,14 @@ void main() {
           '{% for tag in jsonTags %}{{ tag_index }}:{{ tag }} {% endfor %}',
           data: {'jsonTags': '["alpha", "beta"]'},
         ),
-        '0:alpha 1:beta ',
+        '0:alpha \n1:beta',
       );
       expect(
         await engine.renderAsync(
           '{% for tag in jsonTags %}{{ tag_index }}:{{ tag }} {% endfor %}',
           data: {'jsonTags': '["alpha"]'},
         ),
-        '0:alpha ',
+        '0:alpha',
       );
 
       // Singleton primitive list unwrapping in output

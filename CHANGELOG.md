@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.10.16] - 2026-10-16
+
+### Knap (`packages/knap`)
+- **100% Upstream Conformance**: 188 / 188 official upstream `obsidianmd/knap` test suite cases in `render.json` passing.
+- **Day.js Parser & Duration Format**: Day.js ISO token parser and duration formatting (`HH:mm:ss`, `mm:ss`).
+- **Parser & Filter Robustness**: Character class bracket handling vs list literals (`[0-9]` vs `["a", "b"]`), and hyphenated identifier arguments with negative numbers (`list:task-1`, `list:task - 1`).
+- **Evaluator API**: Public `evaluateExpression(Expression expr)` on `KnapEvaluator` and clean filter evaluation pipeline.
+- **100.00% Line Test Coverage**: All 14 library files covered (2,659 / 2,659 lines).
+
+### Flutter Knap (`packages/flutter_knap`)
+- Upgraded dependency to `knap ^2026.10.16`.
+- Maintained **100.00% line test coverage** across all widgets and controllers.
+- Clean analysis with 0 warnings.
+
 ## [2026.10.9] - 2026-10-09
 
 ### Knap (`packages/knap`)

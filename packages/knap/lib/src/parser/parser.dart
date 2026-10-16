@@ -70,25 +70,12 @@ class KnapParser {
     final startToken = _previous();
     final expr = _parseExpression();
 
-    final filters = <FilterCall>[];
-    while (_match(TokenType.pipe)) {
-      final filterToken = _consume(
-        TokenType.identifier,
-        'Expected filter name after "|"',
-      );
-      final args = <Expression>[];
-      if (_match(TokenType.colon)) {
-        _parseFilterArguments(args);
-      }
-      filters.add(FilterCall(filterToken.lexeme, args));
-    }
-
     _consume(
       TokenType.variableEnd,
       'Expected "}}" to close variable tag',
       startToken.location,
     );
-    return VariableNode(expr, filters: filters);
+    return VariableNode(expr);
   }
 
   void _parseFilterArguments(List<Expression> args) {
@@ -115,6 +102,75 @@ class KnapParser {
   }
 
   Expression _parseSingleFilterArg() {
+    // Check for delimiter symbols as args (e.g. split:/, split:*, split:-, calc:+1)
+    if (_check(TokenType.slash) ||
+        _check(TokenType.star) ||
+        _check(TokenType.minus) ||
+        _check(TokenType.plus)) {
+      final token = _advance();
+      if (_check(TokenType.number)) {
+        final numToken = _advance();
+        return LiteralExpression('${token.lexeme}${numToken.lexeme}');
+      }
+      return LiteralExpression(token.lexeme);
+    }
+
+    // Check for bracket regex pattern: e.g. [0-9]
+    if (_check(TokenType.leftBracket)) {
+      var isRegexClass = false;
+      var i = 1;
+      while (_current + i < tokens.length) {
+        final t = tokens[_current + i];
+        if (t.type == TokenType.rightBracket) break;
+        if (t.type == TokenType.comma || t.type == TokenType.string) {
+          isRegexClass = false;
+          break;
+        }
+        if (t.type == TokenType.minus || t.lexeme.contains('-') || t.lexeme == '^') {
+          isRegexClass = true;
+        }
+        i++;
+      }
+      if (isRegexClass) {
+        _advance(); // consume '['
+        final buffer = StringBuffer('[');
+        var depth = 1;
+        while (!_isAtEnd() && depth > 0) {
+          final token = _peek();
+          if (token.type == TokenType.leftBracket) {
+            depth++;
+          } else if (token.type == TokenType.rightBracket) {
+            depth--;
+            buffer.write(']');
+            _advance();
+            if (depth == 0) break;
+            continue;
+          }
+          buffer.write(token.lexeme);
+          _advance();
+        }
+        return LiteralExpression(buffer.toString());
+      }
+    }
+
+    // Check for number + identifier: e.g. 2n
+    if (_check(TokenType.number) && _peekNext().type == TokenType.identifier) {
+      final numToken = _advance();
+      final idToken = _advance();
+      return LiteralExpression('${numToken.lexeme}${idToken.lexeme}');
+    }
+
+    // Check for identifier + plus + number: e.g. n+7
+    if (_check(TokenType.identifier) && _peekNext().type == TokenType.plus) {
+      final idToken = _advance();
+      _advance(); // plus
+      if (_check(TokenType.number)) {
+        final numToken = _advance();
+        return LiteralExpression('${idToken.lexeme}+${numToken.lexeme}');
+      }
+      return LiteralExpression('${idToken.lexeme}+');
+    }
+
     // Check for arrow expression: identifier => ...
     if (_check(TokenType.identifier) && _peekNext().type == TokenType.arrow) {
       final idToken = _advance();
@@ -154,7 +210,35 @@ class KnapParser {
       return LiteralExpression(buffer.toString().trim());
     }
 
-    return _parseExpression();
+    // Check for hyphenated identifier: e.g. numbered-task, pt-BR, task-1
+    if (_check(TokenType.identifier)) {
+      if (_peekNext().type == TokenType.minus) {
+        final buffer = StringBuffer(_advance().lexeme);
+        while (_check(TokenType.minus) &&
+            (_peekNext().type == TokenType.identifier ||
+                _peekNext().type == TokenType.number)) {
+          buffer.write(_advance().lexeme); // minus
+          buffer.write(_advance().lexeme); // identifier / number
+        }
+        return LiteralExpression(buffer.toString());
+      } else if (_peekNext().type == TokenType.number &&
+          _peekNext().lexeme.startsWith('-')) {
+        final id = _advance().lexeme;
+        final numLex = _advance().lexeme;
+        return LiteralExpression('$id$numLex');
+      }
+    }
+
+    return _parseNullCoalescingWithoutFilter();
+  }
+
+  Expression _parseNullCoalescingWithoutFilter() {
+    var expr = _parseOr();
+    while (_match(TokenType.operatorNullCoalescing)) {
+      final right = _parseOr();
+      expr = BinaryOpExpression(BinaryOperator.nullCoalescing, expr, right);
+    }
+    return expr;
   }
 
   KnapNode _parseTagNode() {
@@ -319,10 +403,26 @@ class KnapParser {
   Expression _parseExpression() => _parseNullCoalescing();
 
   Expression _parseNullCoalescing() {
-    var expr = _parseOr();
+    var expr = _parseFilter();
     while (_match(TokenType.operatorNullCoalescing)) {
-      final right = _parseOr();
+      final right = _parseFilter();
       expr = BinaryOpExpression(BinaryOperator.nullCoalescing, expr, right);
+    }
+    return expr;
+  }
+
+  Expression _parseFilter() {
+    var expr = _parseOr();
+    while (_match(TokenType.pipe)) {
+      final filterToken = _consume(
+        TokenType.identifier,
+        'Expected filter name after "|"',
+      );
+      final args = <Expression>[];
+      if (_match(TokenType.colon)) {
+        _parseFilterArguments(args);
+      }
+      expr = FilterExpression(expr, FilterCall(filterToken.lexeme, args));
     }
     return expr;
   }

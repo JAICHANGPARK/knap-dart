@@ -272,3 +272,19 @@ class BinaryOpExpression extends Expression {
   @override
   String toString() => 'Binary($left $operator $right)';
 }
+
+/// An expression applying a filter invocation to a target [target] expression (`expr | filter`).
+class FilterExpression extends Expression {
+  /// The target expression whose evaluated value is piped into [filter].
+  final Expression target;
+
+  /// The filter call being applied.
+  final FilterCall filter;
+
+  /// Creates a [FilterExpression] applying [filter] to [target].
+  const FilterExpression(this.target, this.filter);
+
+  @override
+  String toString() => 'FilterExpr($target | $filter)';
+}
+

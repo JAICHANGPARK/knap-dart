@@ -10,10 +10,12 @@ void main() {
 
       expect(nodes.length, 1);
       final varNode = nodes[0] as VariableNode;
-      expect(varNode.expression, isA<PropertyAccessExpression>());
-      expect(varNode.filters.length, 2);
-      expect(varNode.filters[0].name, 'trim');
-      expect(varNode.filters[1].name, 'upper');
+      expect(varNode.expression, isA<FilterExpression>());
+      final upperFilter = varNode.expression as FilterExpression;
+      expect(upperFilter.filter.name, 'upper');
+      final trimFilter = upperFilter.target as FilterExpression;
+      expect(trimFilter.filter.name, 'trim');
+      expect(trimFilter.target, isA<PropertyAccessExpression>());
     });
 
     test('parses if-elif-else block', () {

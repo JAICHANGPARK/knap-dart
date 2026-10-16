@@ -21,7 +21,7 @@ void main() {
         engine.render('{% for x in items %}{{ x }},{% endfor %}', data: {
           'items': {'a', 'b'},
         }),
-        'a,b,',
+        'a,\nb,',
       );
 
       // Single scalar value

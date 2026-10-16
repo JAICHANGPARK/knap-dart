@@ -74,7 +74,7 @@ void main() {
       final res = engine.render(template, data: {
         'items': ['a', 'b', 'c'],
       });
-      expect(res, '3:2,2:1,1:0');
+      expect(res, '3:2,\n2:1,\n1:0');
     });
   });
 }

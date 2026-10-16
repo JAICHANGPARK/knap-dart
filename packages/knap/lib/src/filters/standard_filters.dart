@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import '../runtime/context.dart';
 import 'filter.dart';
 import 'html_filters.dart';
 
@@ -13,6 +14,62 @@ List<String> _splitWords(String str) {
   }
   return parts;
 }
+
+int _isoWeekNumber(DateTime date) {
+  final dayOfWeek = date.weekday; // 1 = Monday, 7 = Sunday
+  final thursday = date.add(Duration(days: 4 - dayOfWeek));
+  final yearStart = DateTime(thursday.year, 1, 1);
+  final dayOfYear = thursday.difference(yearStart).inDays + 1;
+  return ((dayOfYear - 1) / 7).floor() + 1;
+}
+
+int _isoWeekYear(DateTime date) {
+  final dayOfWeek = date.weekday;
+  final thursday = date.add(Duration(days: 4 - dayOfWeek));
+  return thursday.year;
+}
+
+const _monthsFull = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December'
+];
+
+const _monthsShort = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec'
+];
+
+const _daysFull = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday'
+];
+
+const _daysShort = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 DateTime? _parseDateTime(Object? val) {
   if (val == null) return null;
@@ -32,23 +89,128 @@ DateTime? _parseDateTime(Object? val) {
   return DateTime.tryParse(str);
 }
 
-String _formatDate(DateTime dt, String format) {
-  final yyyy = dt.year.toString().padLeft(4, '0');
-  final yy = yyyy.substring(2);
-  final mm = dt.month.toString().padLeft(2, '0');
-  final dd = dt.day.toString().padLeft(2, '0');
-  final hh = dt.hour.toString().padLeft(2, '0');
-  final min = dt.minute.toString().padLeft(2, '0');
-  final ss = dt.second.toString().padLeft(2, '0');
+DateTime? _parseDateTimeWithFormat(String str, String inputFormat) {
+  final escaped = RegExp.escape(inputFormat)
+      .replaceAll('YYYY', r'(?<Y>\d{4})')
+      .replaceAll('YY', r'(?<y>\d{2})')
+      .replaceAll('MM', r'(?<M>\d{1,2})')
+      .replaceAll('DD', r'(?<D>\d{1,2})')
+      .replaceAll('HH', r'(?<H>\d{1,2})')
+      .replaceAll('mm', r'(?<m>\d{1,2})')
+      .replaceAll('ss', r'(?<s>\d{1,2})');
+  try {
+    final match = RegExp('^$escaped\$').firstMatch(str.trim());
+    if (match != null) {
+      final names = match.groupNames.toSet();
+      final yStr = names.contains('Y')
+          ? match.namedGroup('Y')
+          : (names.contains('y') ? match.namedGroup('y') : null);
+      var year = yStr != null ? int.parse(yStr) : DateTime.now().year;
+      if (year < 100) year += 2000;
+      final month =
+          names.contains('M') ? int.tryParse(match.namedGroup('M') ?? '') ?? 1 : 1;
+      final day =
+          names.contains('D') ? int.tryParse(match.namedGroup('D') ?? '') ?? 1 : 1;
+      final hour =
+          names.contains('H') ? int.tryParse(match.namedGroup('H') ?? '') ?? 0 : 0;
+      final minute =
+          names.contains('m') ? int.tryParse(match.namedGroup('m') ?? '') ?? 0 : 0;
+      final second =
+          names.contains('s') ? int.tryParse(match.namedGroup('s') ?? '') ?? 0 : 0;
+      return DateTime(year, month, day, hour, minute, second);
+    }
+  } catch (_) {}
+  return _parseDateTime(str);
+}
 
-  return format
-      .replaceAll('YYYY', yyyy)
-      .replaceAll('YY', yy)
-      .replaceAll('MM', mm)
-      .replaceAll('DD', dd)
-      .replaceAll('HH', hh)
-      .replaceAll('mm', min)
-      .replaceAll('ss', ss);
+String _formatDate(DateTime dt, String format) {
+  final tokenRegex = RegExp(
+    r'\[([^\]]+)\]|MMMM|MMM|MM|M|YYYY|YY|GGGG|GG|WW|W|DD|D|dddd|ddd|d|HH|H|hh|h|mm|m|ss|s|A|a|.',
+  );
+
+  return tokenRegex.allMatches(format).map((match) {
+    final literal = match.group(1);
+    if (literal != null) return literal;
+    final token = match.group(0)!;
+    switch (token) {
+      case 'MMMM':
+        return _monthsFull[dt.month - 1];
+      case 'MMM':
+        return _monthsShort[dt.month - 1];
+      case 'MM':
+        return dt.month.toString().padLeft(2, '0');
+      case 'M':
+        return dt.month.toString();
+      case 'YYYY':
+        return dt.year.toString().padLeft(4, '0');
+      case 'YY':
+        return (dt.year % 100).toString().padLeft(2, '0');
+      case 'GGGG':
+        return _isoWeekYear(dt).toString().padLeft(4, '0');
+      case 'GG':
+        return (_isoWeekYear(dt) % 100).toString().padLeft(2, '0');
+      case 'WW':
+        return _isoWeekNumber(dt).toString().padLeft(2, '0');
+      case 'W':
+        return _isoWeekNumber(dt).toString();
+      case 'DD':
+        return dt.day.toString().padLeft(2, '0');
+      case 'D':
+        return dt.day.toString();
+      case 'dddd':
+        return _daysFull[dt.weekday - 1];
+      case 'ddd':
+        return _daysShort[dt.weekday - 1];
+      case 'd':
+        return (dt.weekday % 7).toString();
+      case 'HH':
+        return dt.hour.toString().padLeft(2, '0');
+      case 'H':
+        return dt.hour.toString();
+      case 'hh':
+        final h = dt.hour % 12;
+        return (h == 0 ? 12 : h).toString().padLeft(2, '0');
+      case 'h':
+        final h = dt.hour % 12;
+        return (h == 0 ? 12 : h).toString();
+      case 'mm':
+        return dt.minute.toString().padLeft(2, '0');
+      case 'm':
+        return dt.minute.toString();
+      case 'ss':
+        return dt.second.toString().padLeft(2, '0');
+      case 's':
+        return dt.second.toString();
+      case 'A':
+        return dt.hour >= 12 ? 'PM' : 'AM';
+      case 'a':
+        return dt.hour >= 12 ? 'pm' : 'am';
+      default:
+        return token;
+    }
+  }).join('');
+}
+
+int? _parseIsoDurationToSeconds(String str) {
+  final match = RegExp(
+    r'^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$',
+  ).firstMatch(str.trim());
+  if (match == null) return null;
+  final years = int.tryParse(match.group(1) ?? '') ?? 0;
+  final months = int.tryParse(match.group(2) ?? '') ?? 0;
+  final weeks = int.tryParse(match.group(3) ?? '') ?? 0;
+  final days = int.tryParse(match.group(4) ?? '') ?? 0;
+  final hours = int.tryParse(match.group(5) ?? '') ?? 0;
+  final minutes = int.tryParse(match.group(6) ?? '') ?? 0;
+  final seconds = double.tryParse(match.group(7) ?? '') ?? 0.0;
+  final totalSec = years * 31536000 +
+      months * 2592000 +
+      weeks * 604800 +
+      days * 86400 +
+      hours * 3600 +
+      minutes * 60 +
+      seconds;
+  return totalSec.round();
 }
 
 String _yamlKeyText(String key) {
@@ -222,19 +384,27 @@ final Map<String, KnapFilter> standardFilters = {
     for (var i = 0; i < args.length; i += 2) {
       final from = args[i]?.toString() ?? '';
       final to = (i + 1 < args.length) ? (args[i + 1]?.toString() ?? '') : '';
-      final regexMatch = RegExp(r'^/(.+)/([gimsuy]*)$').firstMatch(from);
-      if (regexMatch != null) {
-        final pattern = regexMatch.group(1)!;
-        final flags = regexMatch.group(2)!;
-        final reg = RegExp(
-          pattern,
-          caseSensitive: !flags.contains('i'),
-          multiLine: flags.contains('m'),
-          dotAll: flags.contains('s'),
+      try {
+        final regexMatch = RegExp(r'^/(.+)/([gimsuy]*)$').firstMatch(from);
+        if (regexMatch != null) {
+          final pattern = regexMatch.group(1)!;
+          final flags = regexMatch.group(2)!;
+          final reg = RegExp(
+            pattern,
+            caseSensitive: !flags.contains('i'),
+            multiLine: flags.contains('m'),
+            dotAll: flags.contains('s'),
+          );
+          str = str.replaceAll(reg, to);
+        } else {
+          str = str.replaceAll(from, to);
+        }
+      } catch (_) {
+        reportFilterWarning(
+          'Invalid regex pattern: $from',
+          'replace',
         );
-        str = str.replaceAll(reg, to);
-      } else {
-        str = str.replaceAll(from, to);
+        return val;
       }
     }
     return str;
@@ -254,10 +424,11 @@ final Map<String, KnapFilter> standardFilters = {
               ? (args[0] as num).toInt()
               : int.tryParse(args[0]?.toString() ?? '') ?? 50)
         : 50;
-    final suffix = args.length > 1 ? args[1]?.toString() ?? '...' : '...';
+    final suffix = args.length > 1 ? args[1]?.toString() ?? '…' : '…';
     if (maxLen <= 0) return '';
     if (str.length <= maxLen) return str;
-    return '${str.substring(0, maxLen)}$suffix';
+    final contentLimit = math.max(0, maxLen - suffix.length);
+    return '${str.substring(0, contentLimit)}$suffix';
   },
   'truncatewords': (val, args) {
     final str = val?.toString() ?? '';
@@ -331,6 +502,9 @@ final Map<String, KnapFilter> standardFilters = {
     return copy;
   },
   'reverse': (val, args) {
+    if (val is Map) {
+      return Map.fromEntries(val.entries.toList().reversed);
+    }
     if (val is List) {
       return val.reversed.toList();
     }
@@ -343,49 +517,106 @@ final Map<String, KnapFilter> standardFilters = {
     return val;
   },
   'slice': (val, args) {
-    final start = args.isNotEmpty && args[0] is num
-        ? (args[0] as num).toInt()
-        : 0;
-    final end = args.length > 1 && args[1] is num
-        ? (args[1] as num).toInt()
-        : null;
+    var start = 0;
+    int? end;
+    if (args.isNotEmpty) {
+      final firstArg = args[0];
+      if (firstArg is num) {
+        start = firstArg.toInt();
+      } else if (firstArg is String && firstArg.contains(',')) {
+        final parts = firstArg.split(',');
+        start = int.tryParse(parts[0].trim()) ?? 0;
+        if (parts.length > 1) {
+          end = int.tryParse(parts[1].trim());
+        }
+      } else if (firstArg != null) {
+        start = int.tryParse(firstArg.toString()) ?? 0;
+      }
+    }
+    if (args.length > 1) {
+      final secondArg = args[1];
+      if (secondArg is num) {
+        end = secondArg.toInt();
+      } else if (secondArg != null) {
+        end = int.tryParse(secondArg.toString());
+      }
+    }
 
     if (val is List) {
-      final effectiveStart = start.clamp(0, val.length);
-      final effectiveEnd = end != null
-          ? end.clamp(effectiveStart, val.length)
-          : val.length;
-      return val.sublist(effectiveStart, effectiveEnd);
+      final len = val.length;
+      final effectiveStart =
+          start < 0 ? math.max(0, len + start) : math.min(len, start);
+      final effectiveEnd = end == null
+          ? len
+          : end < 0
+              ? math.max(0, len + end)
+              : math.min(len, end);
+      final s = math.min(effectiveStart, effectiveEnd);
+      final e = math.max(s, effectiveEnd);
+      return val.sublist(s, e);
     }
     if (val is String) {
-      final effectiveStart = start.clamp(0, val.length);
-      final effectiveEnd = end != null
-          ? end.clamp(effectiveStart, val.length)
-          : val.length;
-      return val.substring(effectiveStart, effectiveEnd);
+      final len = val.length;
+      final effectiveStart =
+          start < 0 ? math.max(0, len + start) : math.min(len, start);
+      final effectiveEnd = end == null
+          ? len
+          : end < 0
+              ? math.max(0, len + end)
+              : math.min(len, end);
+      final s = math.min(effectiveStart, effectiveEnd);
+      final e = math.max(s, effectiveEnd);
+      return val.substring(s, e);
     }
     return val;
   },
   'unique': (val, args) {
     if (val is Iterable) {
-      return val.toSet().toList();
+      final seen = <String>{};
+      final res = <dynamic>[];
+      for (final item in val) {
+        final key = jsonEncode(item);
+        if (seen.add(key)) {
+          res.add(item);
+        }
+      }
+      return res;
+    }
+    if (val is Map) {
+      final seenValues = <String>{};
+      final reversedEntries = val.entries.toList().reversed;
+      final keptEntries = <MapEntry>[];
+      for (final entry in reversedEntries) {
+        final key = jsonEncode(entry.value);
+        if (seenValues.add(key)) {
+          keptEntries.add(entry);
+        }
+      }
+      return Map.fromEntries(keptEntries.reversed);
     }
     return val;
   },
   'merge': (val, args) {
     if (args.isEmpty) return val;
-    final other = args[0];
     if (val is List) {
       final res = List<Object?>.from(val);
-      if (other is Iterable) {
-        res.addAll(other);
-      } else if (other != null) {
-        res.add(other);
+      for (final other in args) {
+        if (other is Iterable) {
+          res.addAll(other);
+        } else if (other != null) {
+          res.add(other);
+        }
       }
       return res;
     }
-    if (val is Map && other is Map) {
-      return {...val, ...other};
+    if (val is Map) {
+      final res = Map<dynamic, dynamic>.from(val);
+      for (final other in args) {
+        if (other is Map) {
+          res.addAll(other);
+        }
+      }
+      return res;
     }
     return val;
   },
@@ -421,7 +652,7 @@ final Map<String, KnapFilter> standardFilters = {
   },
   'hard_break': (val, args) {
     final str = val?.toString() ?? '';
-    return str.replaceAll('\n', '  \n');
+    return str.replaceAllMapped(RegExp(r'(?<!\n)\n(?!\n)'), (m) => '  \n');
   },
   'json': (val, args) {
     try {
@@ -434,11 +665,26 @@ final Map<String, KnapFilter> standardFilters = {
 
   // Date filters
   'date': (val, args) {
-    final dt = _parseDateTime(val);
-    if (dt == null) return val?.toString() ?? '';
-    final format = args.isNotEmpty
-        ? args[0]?.toString() ?? 'YYYY-MM-DD'
-        : 'YYYY-MM-DD';
+    if (val == null) return '';
+    final str = val.toString().trim();
+    final format =
+        args.isNotEmpty ? args[0]?.toString() ?? 'YYYY-MM-DD' : 'YYYY-MM-DD';
+    final inputFormat = args.length > 1 ? args[1]?.toString() : null;
+
+    DateTime? dt;
+    if (inputFormat != null && inputFormat.isNotEmpty) {
+      dt = _parseDateTimeWithFormat(str, inputFormat);
+    } else {
+      dt = _parseDateTime(val);
+    }
+
+    if (dt == null) {
+      reportFilterWarning(
+        'Invalid date input: $val',
+        'date',
+      );
+      return str;
+    }
     return _formatDate(dt, format);
   },
   'date_modify': (val, args) {
@@ -506,8 +752,20 @@ final Map<String, KnapFilter> standardFilters = {
   // Additional String / System Filters
   'split': (val, args) {
     final str = val?.toString() ?? '';
-    final delimiter = args.isNotEmpty ? args[0]?.toString() ?? ',' : ',';
-    return str.split(delimiter);
+    if (args.isEmpty) return str.split('');
+    final pattern = args[0]?.toString() ?? '';
+    if (pattern.isEmpty) return str.split('');
+    if (pattern.startsWith('[') && pattern.endsWith(']')) {
+      try {
+        return str.split(RegExp(pattern));
+      } catch (_) {}
+    }
+    if (pattern.startsWith('/') && pattern.endsWith('/') && pattern.length > 2) {
+      try {
+        return str.split(RegExp(pattern.substring(1, pattern.length - 1)));
+      } catch (_) {}
+    }
+    return str.split(pattern);
   },
   'indent': (val, args) {
     final str = val?.toString() ?? '';
@@ -558,11 +816,27 @@ final Map<String, KnapFilter> standardFilters = {
     return str.replaceAll(RegExp(r'[/\\?%*:|"<>#^\[\]]'), replacement).trim();
   },
   'strip_tags': (val, args) {
-    final str = val?.toString() ?? '';
+    var str = val?.toString() ?? '';
     if (str.isEmpty) return '';
+    final keepTags = <String>{};
+    if (args.isNotEmpty) {
+      if (args[0] is Iterable) {
+        keepTags.addAll((args[0] as Iterable).map((e) => e.toString().toLowerCase().trim()));
+      } else {
+        keepTags.addAll(args.map((e) => e?.toString().toLowerCase().trim() ?? '').where((s) => s.isNotEmpty));
+      }
+    }
+    str = str.replaceAll(RegExp(r'<!--[\s\S]*?-->'), '');
+    if (keepTags.isEmpty) {
+      str = str.replaceAll(RegExp(r'<[^>]*>'), '');
+    } else {
+      str = str.replaceAllMapped(RegExp(r'</?([a-zA-Z0-9]+)(\s+[^>]*)?>'), (m) {
+        final tag = m.group(1)!.toLowerCase();
+        if (keepTags.contains(tag)) return m.group(0)!;
+        return '';
+      });
+    }
     return str
-        .replaceAll(RegExp(r'<!--[\s\S]*?-->'), '')
-        .replaceAll(RegExp(r'<[^>]*>'), '')
         .replaceAll('&nbsp;', ' ')
         .replaceAll('&amp;', '&')
         .replaceAll('&lt;', '<')
@@ -572,8 +846,35 @@ final Map<String, KnapFilter> standardFilters = {
         .replaceAll('&apos;', "'")
         .trim();
   },
-  'remove_html': (val, args) => standardFilters['strip_tags']!(val, args),
-  'remove_tags': (val, args) => standardFilters['strip_tags']!(val, args),
+  'remove_html': (val, args) {
+    var str = val?.toString() ?? '';
+    if (str.isEmpty) return str;
+    if (args.isEmpty) {
+      return standardFilters['strip_tags']!(val, args);
+    }
+    final tags = (args[0] is Iterable)
+        ? (args[0] as Iterable).map((e) => e.toString().toLowerCase().trim()).toList()
+        : args.map((e) => e?.toString().toLowerCase().trim() ?? '').where((s) => s.isNotEmpty).toList();
+    for (final t in tags) {
+      str = str.replaceAll(RegExp('<$t(\\s+[^>]*)?>[\\s\\S]*?<\\/$t>', caseSensitive: false), '');
+      str = str.replaceAll(RegExp('<$t(\\s+[^>]*)?\\/?>', caseSensitive: false), '');
+    }
+    return str;
+  },
+  'remove_tags': (val, args) {
+    var str = val?.toString() ?? '';
+    if (str.isEmpty) return str;
+    if (args.isEmpty) {
+      return standardFilters['strip_tags']!(val, args);
+    }
+    final tags = (args[0] is Iterable)
+        ? (args[0] as Iterable).map((e) => e.toString().toLowerCase().trim()).toList()
+        : args.map((e) => e?.toString().toLowerCase().trim() ?? '').where((s) => s.isNotEmpty).toList();
+    for (final t in tags) {
+      str = str.replaceAll(RegExp('<\\/?$t(\\s+[^>]*)?>', caseSensitive: false), '');
+    }
+    return str;
+  },
   'html_to_json': htmlToJsonFilter,
 
   // Additional Collection Filters
@@ -587,8 +888,7 @@ final Map<String, KnapFilter> standardFilters = {
       if (item is Map) {
         final itemVal = _resolveNestedPath(item, key);
         if (hasExpected) {
-          if (expected == null) return itemVal == null;
-          return itemVal?.toString() == expected.toString();
+          return itemVal == expected;
         }
         return itemVal != null && itemVal != false && itemVal != '';
       }
@@ -607,19 +907,35 @@ final Map<String, KnapFilter> standardFilters = {
     return val.map((item) => _resolveNestedPath(item, key)).toList();
   },
   'compact': (val, args) {
-    if (val is! Iterable) return val;
-    return val.where((e) => e != null && e != '' && e != false).toList();
+    if (val is Map) {
+      final res = <dynamic, dynamic>{};
+      for (final entry in val.entries) {
+        final v = entry.value;
+        if (v != null && v != '') {
+          res[entry.key] = v;
+        }
+      }
+      return res;
+    }
+    if (val is Iterable) {
+      return val.where((e) => e != null && e != '').toList();
+    }
+    return val;
   },
 
   // Math & Number Filters
   'sum': (val, args) {
     if (val is! Iterable) return 0;
+    final property = args.isNotEmpty && args[0] != null && args[0].toString().isNotEmpty
+        ? args[0].toString()
+        : null;
     num total = 0;
     for (final item in val) {
-      if (item is num) {
-        total += item;
-      } else if (item != null) {
-        final parsed = num.tryParse(item.toString());
+      final resolved = property != null ? _resolveNestedPath(item, property) : item;
+      if (resolved is num) {
+        total += resolved;
+      } else if (resolved != null) {
+        final parsed = num.tryParse(resolved.toString());
         if (parsed != null) total += parsed;
       }
     }
@@ -631,10 +947,22 @@ final Map<String, KnapFilter> standardFilters = {
   'round': (val, args) {
     if (val == null) return 0;
     final number = val is num ? val.toDouble() : double.tryParse(val.toString());
-    if (number == null) return val;
-    final decimals = args.isNotEmpty && args[0] is num
-        ? (args[0] as num).toInt()
-        : 0;
+    if (number == null) {
+      reportFilterWarning(
+        'Non-numeric input for round: $val',
+        'round',
+      );
+      return val;
+    }
+    var decimals = 0;
+    if (args.isNotEmpty) {
+      final d = args[0];
+      if (d is num) {
+        decimals = d.toInt();
+      } else if (d != null) {
+        decimals = int.tryParse(d.toString()) ?? 0;
+      }
+    }
     if (decimals <= 0) {
       return number.round();
     }
@@ -642,44 +970,97 @@ final Map<String, KnapFilter> standardFilters = {
   },
   'number_format': (val, args) {
     if (val == null) return '';
-    final numVal = val is num ? val : num.tryParse(val.toString());
-    if (numVal == null) return val.toString();
-    final decimals = args.isNotEmpty && args[0] is num
-        ? (args[0] as num).toInt()
-        : null;
+    int? decimals;
+    var decPoint = '.';
+    var thousandsSep = ',';
 
-    String str;
-    if (decimals != null) {
-      str = numVal.toStringAsFixed(decimals);
-    } else {
-      str = numVal.toString();
+    if (args.isNotEmpty) {
+      final d = args[0];
+      if (d is num) {
+        decimals = d.toInt();
+      } else if (d != null) {
+        decimals = int.tryParse(d.toString());
+      }
     }
-    final parts = str.split('.');
-    final intPart = parts[0].replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => ',',
-    );
-    if (parts.length > 1) {
-      return '$intPart.${parts[1]}';
+    if (args.length > 1 && args[1] != null) {
+      decPoint = args[1].toString();
     }
-    return intPart;
+    if (args.length > 2 && args[2] != null) {
+      thousandsSep = args[2].toString();
+    }
+
+    String formatSingle(num numVal) {
+      final str = decimals != null
+          ? numVal.toStringAsFixed(decimals)
+          : numVal.toString();
+      final parts = str.split('.');
+      final intPart = parts[0].replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+        (match) => thousandsSep,
+      );
+      if (parts.length > 1) {
+        return '$intPart$decPoint${parts[1]}';
+      }
+      return intPart;
+    }
+
+    Object? formatRec(Object? item) {
+      if (item is num) return formatSingle(item);
+      if (item is String) {
+        final parsed = num.tryParse(item);
+        if (parsed != null) return formatSingle(parsed);
+        return item;
+      }
+      if (item is List) return item.map(formatRec).toList();
+      if (item is Map) return item.map((k, v) => MapEntry(k, formatRec(v)));
+      return item;
+    }
+
+    final formatted = formatRec(val);
+    return formatted ?? '';
   },
 
   // Duration & JSON Filters
   'duration': (val, args) {
     if (val == null) return '';
-    final numVal = val is num ? val.toDouble() : double.tryParse(val.toString());
-    if (numVal == null) return val.toString();
-    final unit = args.isNotEmpty ? args[0]?.toString().toLowerCase() : 's';
-    final totalSeconds = (unit == 'ms' ? numVal / 1000 : numVal).round();
-    if (totalSeconds < 60) return '${totalSeconds}s';
-    final hours = totalSeconds ~/ 3600;
+    int? totalSeconds;
+    if (val is num) {
+      totalSeconds = val.toInt();
+    } else {
+      final str = val.toString().trim();
+      totalSeconds = _parseIsoDurationToSeconds(str);
+      if (totalSeconds == null) {
+        final parsed = double.tryParse(str);
+        if (parsed != null) {
+          totalSeconds = parsed.toInt();
+        } else {
+          return val.toString();
+        }
+      }
+    }
+
+    final totalHours = totalSeconds ~/ 3600;
     final minutes = (totalSeconds % 3600) ~/ 60;
     final seconds = totalSeconds % 60;
-    if (hours > 0) {
-      return '${hours}h ${minutes}m${seconds > 0 ? ' ${seconds}s' : ''}';
+
+    if (args.isEmpty) {
+      final mm = minutes.toString().padLeft(2, '0');
+      final ss = seconds.toString().padLeft(2, '0');
+      if (totalHours > 0) {
+        final hh = totalHours.toString().padLeft(2, '0');
+        return '$hh:$mm:$ss';
+      }
+      return '$mm:$ss';
     }
-    return '${minutes}m${seconds > 0 ? ' ${seconds}s' : ''}';
+
+    final format = args[0]?.toString() ?? '';
+    return format
+        .replaceAll('HH', totalHours.toString().padLeft(2, '0'))
+        .replaceAll('H', totalHours.toString())
+        .replaceAll('mm', minutes.toString().padLeft(2, '0'))
+        .replaceAll('m', minutes.toString())
+        .replaceAll('ss', seconds.toString().padLeft(2, '0'))
+        .replaceAll('s', seconds.toString());
   },
   'parse_json': (val, args) {
     if (val == null) return null;
@@ -693,15 +1074,21 @@ final Map<String, KnapFilter> standardFilters = {
   // Math Arithmetic Calculator
   'calc': (val, args) {
     if (val == null || args.isEmpty) return val;
-    final numVal = val is num ? val.toDouble() : double.tryParse(val.toString());
-    if (numVal == null) return val;
+    final numVal =
+        val is num ? val.toDouble() : double.tryParse(val.toString());
+    if (numVal == null) {
+      reportFilterWarning(
+        'Non-numeric input for calc: $val',
+        'calc',
+      );
+      return val;
+    }
 
     final operation = args[0]?.toString().trim() ?? '';
     if (operation.isEmpty) return numVal;
 
-    final operator = operation.startsWith('**')
-        ? '**'
-        : operation.substring(0, 1);
+    final operator =
+        operation.startsWith('**') ? '**' : operation.substring(0, 1);
     final valueStr = operation.substring(operator.length).trim();
     final operand = double.tryParse(valueStr);
     if (operand == null) return numVal;
@@ -741,15 +1128,26 @@ final Map<String, KnapFilter> standardFilters = {
     final param = args[0]?.toString().trim() ?? '';
     if (param.isEmpty) return list;
 
-    // Basis pattern: 1,2:5
-    if (param.contains(':')) {
+    // Multi-arg basis or Colon pattern: nth:2,3:4 or nth:1,2:5
+    var basis = 1;
+    var positions = <int>{};
+    if (args.length > 1) {
+      basis = int.tryParse(args.last.toString()) ?? 1;
+      positions = args
+          .sublist(0, args.length - 1)
+          .map((n) => int.tryParse(n.toString()) ?? 0)
+          .where((n) => n > 0)
+          .toSet();
+    } else if (param.contains(':')) {
       final parts = param.split(':');
-      final positions = parts[0]
+      positions = parts[0]
           .split(',')
           .map((n) => int.tryParse(n.trim()) ?? 0)
           .where((n) => n > 0)
           .toSet();
-      final basis = int.tryParse(parts[1].trim()) ?? 1;
+      basis = int.tryParse(parts[1].trim()) ?? 1;
+    }
+    if (positions.isNotEmpty) {
       final result = <Object?>[];
       for (var i = 0; i < list.length; i++) {
         final posInGroup = (i % basis) + 1;

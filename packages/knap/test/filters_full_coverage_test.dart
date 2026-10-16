@@ -72,7 +72,10 @@ void main() {
 
       final fragment = markdownFilters['fragment_link']!;
       expect(fragment(null, []), '');
-      expect(fragment('My Section Name', []), '#my-section-name');
+      expect(
+        fragment('My Section Name', []),
+        'My Section Name [link](#:~:text=My%20Section%20Name)',
+      );
     });
 
     test('headings h1 through h6', () {

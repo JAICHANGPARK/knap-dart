@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../errors/exceptions.dart';
 import '../filters/filter.dart';
 
@@ -75,6 +76,10 @@ class KnapContext {
 
   /// Non-fatal warnings recorded during filter execution.
   final List<TemplateWarning> warnings = [];
+  final Set<String> _warningKeys = <String>{};
+
+  /// Whether unknown filters pass through their input value without throwing.
+  bool lenient;
 
   /// Creates a [KnapContext] with optional initial [variables], [filterRegistry], and variable resolvers.
   KnapContext({
@@ -82,12 +87,19 @@ class KnapContext {
     FilterRegistry? filterRegistry,
     this.variableResolver,
     this.asyncVariableResolver,
+    this.lenient = false,
   })  : _currentScope = KnapScope(Map<String, Object?>.from(variables ?? {})),
         filterRegistry = filterRegistry ?? FilterRegistry();
 
-  /// Records a non-fatal [warning] emitted by a filter.
+  /// Retrieves the ambient [KnapContext] active in the current [Zone].
+  static KnapContext? get current => Zone.current[#knapContext] as KnapContext?;
+
+  /// Records a non-fatal [warning] emitted by a filter, deduplicating identical warnings.
   void reportWarning(TemplateWarning warning) {
-    warnings.add(warning);
+    final key = '${warning.code.code}:${warning.filter}:${warning.message}';
+    if (_warningKeys.add(key)) {
+      warnings.add(warning);
+    }
   }
 
   /// Sets a variable [name] to [value] in the innermost active scope.
@@ -237,13 +249,17 @@ class KnapContext {
   Object? applyFilter(String name, Object? value, List<Object?> args) {
     final filter = filterRegistry.getSync(name);
     if (filter == null) {
+      if (lenient) return value;
       throw KnapEvaluationException(
         'Filter "$name" is not defined or is async-only',
         null,
         TemplateErrorCode.unknownFilter,
       );
     }
-    return filter(value, args);
+    return runZoned(
+      () => filter(value, args),
+      zoneValues: {#knapContext: this},
+    );
   }
 
   /// Applies an asynchronous filter by [name] with input [value] and [args].
@@ -256,12 +272,32 @@ class KnapContext {
   ) async {
     final filter = filterRegistry.getAsync(name);
     if (filter == null) {
+      if (lenient) return value;
       throw KnapEvaluationException(
         'Filter "$name" is not defined',
         null,
         TemplateErrorCode.unknownFilter,
       );
     }
-    return await filter(value, args);
+    return await runZoned(
+      () async => await filter(value, args),
+      zoneValues: {#knapContext: this},
+    );
   }
 }
+
+/// Emits a non-fatal warning on the ambient [KnapContext] if currently executing within a template evaluation.
+void reportFilterWarning(
+  String message,
+  String filterName, {
+  TemplateWarningCode code = TemplateWarningCode.invalidFilterInput,
+}) {
+  KnapContext.current?.reportWarning(
+    TemplateWarning(
+      message: message,
+      filter: filterName,
+      code: code,
+    ),
+  );
+}
+

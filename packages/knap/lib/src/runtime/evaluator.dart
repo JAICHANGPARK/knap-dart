@@ -37,6 +37,9 @@ class KnapEvaluator {
     return buffer.toString();
   }
 
+  /// Evaluates a single [expr] synchronously and returns its raw evaluated value.
+  Object? evaluateExpression(Expression expr) => _evaluateExpression(expr);
+
   void _evaluateNode(KnapNode node, StringBuffer buffer) {
     switch (node) {
       case TextNode(:final text):
@@ -91,6 +94,7 @@ class KnapEvaluator {
         }
 
         final length = list.length;
+        final results = <String>[];
         for (var i = 0; i < length; i++) {
           budget.step();
           final item = list[i];
@@ -110,10 +114,25 @@ class KnapEvaluator {
             'loop': loopMeta,
           });
 
-          buffer.write(evaluate(body));
+          final itemResult = evaluate(body);
           context.popScope();
-          budget.checkOutput(buffer.length);
+          final trimmed = itemResult.replaceFirst(RegExp(r'^[\t ]*\r?\n?'), '');
+          if (trimmed.isNotEmpty) {
+            results.add(trimmed);
+          }
         }
+
+        final joined = results.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final res = entry.value;
+          if (idx == results.length - 1) {
+            return res.replaceFirst(RegExp(r'[\t ]*\r?\n?$'), '');
+          }
+          return res.endsWith('\n') ? res : '$res\n';
+        }).join('');
+        buffer.write(joined);
+        budget.checkOutput(buffer.length);
+
 
       case SetNode(:final name, :final value):
         final val = _evaluateExpression(value);
@@ -162,7 +181,9 @@ class KnapEvaluator {
         final leftVal = _evaluateExpression(left);
         switch (operator) {
           case BinaryOperator.nullCoalescing:
-            return leftVal ?? _evaluateExpression(right);
+            return context.isTruthy(leftVal)
+                ? leftVal
+                : _evaluateExpression(right);
           case BinaryOperator.contains:
             return _evaluateContains(leftVal, _evaluateExpression(right));
           case BinaryOperator.or:
@@ -186,6 +207,13 @@ class KnapEvaluator {
           case BinaryOperator.greaterEqual:
             return _compare(leftVal, _evaluateExpression(right)) >= 0;
         }
+
+      case FilterExpression(:final target, :final filter):
+        final targetVal = _evaluateExpression(target);
+        final filterArgs = filter.arguments.map(_evaluateFilterArg).toList();
+        final result = context.applyFilter(filter.name, targetVal, filterArgs);
+        budget.checkValue(result);
+        return result;
     }
   }
 
@@ -263,6 +291,7 @@ class KnapEvaluator {
         }
 
         final length = list.length;
+        final results = <String>[];
         for (var i = 0; i < length; i++) {
           budget.step();
           final item = list[i];
@@ -282,10 +311,25 @@ class KnapEvaluator {
             'loop': loopMeta,
           });
 
-          buffer.write(await evaluateAsync(body));
+          final itemResult = await evaluateAsync(body);
           context.popScope();
-          budget.checkOutput(buffer.length);
+          final trimmed = itemResult.replaceFirst(RegExp(r'^[\t ]*\r?\n?'), '');
+          if (trimmed.isNotEmpty) {
+            results.add(trimmed);
+          }
         }
+
+        final joined = results.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final res = entry.value;
+          if (idx == results.length - 1) {
+            return res.replaceFirst(RegExp(r'[\t ]*\r?\n?$'), '');
+          }
+          return res.endsWith('\n') ? res : '$res\n';
+        }).join('');
+        buffer.write(joined);
+        budget.checkOutput(buffer.length);
+
 
       case SetNode(:final name, :final value):
         final val = await _evaluateExpressionAsync(value);
@@ -338,7 +382,9 @@ class KnapEvaluator {
         final leftVal = await _evaluateExpressionAsync(left);
         switch (operator) {
           case BinaryOperator.nullCoalescing:
-            return leftVal ?? await _evaluateExpressionAsync(right);
+            return context.isTruthy(leftVal)
+                ? leftVal
+                : await _evaluateExpressionAsync(right);
           case BinaryOperator.contains:
             final rightVal = await _evaluateExpressionAsync(right);
             return _evaluateContains(leftVal, rightVal);
@@ -363,6 +409,16 @@ class KnapEvaluator {
           case BinaryOperator.greaterEqual:
             return _compare(leftVal, await _evaluateExpressionAsync(right)) >= 0;
         }
+
+      case FilterExpression(:final target, :final filter):
+        final targetVal = await _evaluateExpressionAsync(target);
+        final filterArgs = <Object?>[];
+        for (final arg in filter.arguments) {
+          filterArgs.add(await _evaluateFilterArgAsync(arg));
+        }
+        final result = await context.applyFilterAsync(filter.name, targetVal, filterArgs);
+        budget.checkValue(result);
+        return result;
     }
   }
 
@@ -374,8 +430,12 @@ class KnapEvaluator {
     if (value is List && value.length == 1 && value.first is! Map && value.first is! List) {
       return value.first?.toString() ?? '';
     }
+    if (value is List || value is Map) {
+      return jsonEncode(value);
+    }
     return value.toString();
   }
+
 
   bool _evaluateContains(Object? container, Object? item) {
     if (container == null) return false;

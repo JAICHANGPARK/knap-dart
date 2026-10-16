@@ -98,7 +98,7 @@ void main() {
 
       // duration with invalid string and under 1 hour
       expect(standardFilters['duration']!('not_number', []), 'not_number');
-      expect(standardFilters['duration']!(125, []), '2m 5s');
+      expect(standardFilters['duration']!(125, []), '02:05');
 
       // calc with floating point result
       expect(standardFilters['calc']!(10.5, ['+ 0.25']), 10.75);

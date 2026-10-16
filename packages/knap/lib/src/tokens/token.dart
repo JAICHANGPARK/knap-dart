@@ -111,6 +111,18 @@ enum TokenType {
   /// Null-coalescing operator (`??`).
   operatorNullCoalescing,
 
+  /// Plus symbol (`+`).
+  plus,
+
+  /// Minus symbol (`-`).
+  minus,
+
+  /// Forward slash symbol (`/`).
+  slash,
+
+  /// Asterisk symbol (`*`).
+  star,
+
   // Keywords
 
   /// The `if` keyword.

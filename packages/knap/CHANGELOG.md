@@ -1,3 +1,18 @@
+## 2026.10.16
+
+- **100% Upstream Test Suite Conformance**:
+  - Full passing conformance with official `obsidianmd/knap` cross-language test suite `render.json` (188 / 188 test fixtures passed, 100%).
+- **Day.js Parser & Duration Format Support**:
+  - Day.js ISO format token parsing and formatting parity (`YYYY`, `MM`, `DD`, `HH`, `mm`, `ss`, `SSS`, `Z`, `ZZ`).
+  - Added Day.js duration formatting (`HH:mm:ss`, `mm:ss`, negative duration formats).
+- **Parser & Filter Pipeline Robustness**:
+  - Character class bracket distinction: regex character classes (e.g. `[[0-9]]`, `[a-z]`) vs list literals.
+  - Hyphenated identifier arguments with numbers and signs (e.g. `list:task-1`, `list:task - 1`).
+  - Public `evaluateExpression(Expression expr)` on `KnapEvaluator` and clean filter evaluation pipeline via `applyFiltersWithRegistry`.
+- **Quality & Coverage**:
+  - Achieved **100.00% line test coverage** across all 14 library files (2,659 / 2,659 lines covered).
+  - 0 analyzer issues (`dart analyze` clean).
+
 ## 2026.10.9
 
 - **100% Upstream (`obsidianmd/knap`) Parity**:

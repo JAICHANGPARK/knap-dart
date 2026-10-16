@@ -361,12 +361,28 @@ class KnapLexer {
           );
         }
         break;
+      case '+':
+        _addToken(tokens, TokenType.plus);
+        break;
+      case '/':
+        _addToken(tokens, TokenType.slash);
+        break;
+      case '*':
+        _addToken(tokens, TokenType.star);
+        break;
+      case '-':
+        if (_isDigit(_peek())) {
+          _scanNumber(tokens);
+        } else {
+          _addToken(tokens, TokenType.minus);
+        }
+        break;
       case '"':
       case "'":
         _scanString(tokens, c);
         break;
       default:
-        if (_isDigit(c) || (c == '-' && _isDigit(_peek()))) {
+        if (_isDigit(c)) {
           _scanNumber(tokens);
         } else if (_isAlpha(c)) {
           _scanIdentifier(tokens);
@@ -543,6 +559,35 @@ class KnapLexer {
             location: last.location,
           );
         }
+      } else if (token.type == TokenType.tagStart &&
+          result.isNotEmpty &&
+          i + 1 < tokens.length) {
+        final nextToken = tokens[i + 1];
+        final isClosingOrBranch = nextToken.type == TokenType.kwEndif ||
+            nextToken.type == TokenType.kwEndfor ||
+            nextToken.type == TokenType.kwElse ||
+            nextToken.type == TokenType.kwElif;
+        if (isClosingOrBranch) {
+          final last = result.last;
+          if (last.type == TokenType.text) {
+            final text = last.literal as String;
+            if (text.contains('\n')) {
+              final lastNewline = text.lastIndexOf('\n');
+              final lineRest = text.substring(lastNewline + 1);
+              if (lineRest.trim().isEmpty) {
+                final trimmed = text.substring(0, lastNewline);
+                result[result.length - 1] = Token(
+                  type: TokenType.text,
+                  lexeme: trimmed,
+                  literal: trimmed,
+                  location: last.location,
+                );
+              }
+            } else if (text.trim().isEmpty && result.length == 1) {
+              result.removeLast();
+            }
+          }
+        }
       }
 
       // If previous token was an end tag with trimRight, trim this text token if it's text
@@ -556,6 +601,26 @@ class KnapLexer {
           literal: trimmedText,
           location: token.location,
         );
+      } else if (result.isNotEmpty &&
+          result.last.type == TokenType.tagEnd &&
+          token.type == TokenType.text) {
+        // Block tag trailing newline stripping
+        final text = token.literal as String;
+        if (text.startsWith('\r\n')) {
+          token = Token(
+            type: TokenType.text,
+            lexeme: text.substring(2),
+            literal: text.substring(2),
+            location: token.location,
+          );
+        } else if (text.startsWith('\n')) {
+          token = Token(
+            type: TokenType.text,
+            lexeme: text.substring(1),
+            literal: text.substring(1),
+            location: token.location,
+          );
+        }
       }
 
       result.add(token);
