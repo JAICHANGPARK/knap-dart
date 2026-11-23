@@ -1,3 +1,9 @@
+## 2026.11.23
+
+- Upgraded dependency to `knap ^2026.11.23`.
+- Updated `README.md` with badges, `KnapMarkdownView` examples, and interactive `KnapTemplateController` + `KnapBuilder` usage guides.
+- Maintained **100.00% line test coverage** across all controllers and widgets (10 / 10 tests passing).
+
 ## 2026.10.17
 
 - Upgraded dependency to `knap ^2026.10.17` with modularized filter architecture and fuzzy filter typo suggestions.

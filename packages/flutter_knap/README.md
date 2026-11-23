@@ -29,7 +29,7 @@ Add `flutter_knap` to your `pubspec.yaml`:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_knap: ^2026.10.17
+  flutter_knap: ^2026.11.23
 ```
 
 Then run:

@@ -1,3 +1,12 @@
+## 2026.11.23
+
+- **Documentation & Examples**:
+  - Updated `README.md` with badges, upstream conformance metrics, template diagnostics/validation examples, custom sync/async filter guides, and CSV CLI usage.
+  - Enriched Effective Dart (`///`) API documentation with runnable code examples across all modularized filter libraries (`stringFilters`, `collectionFilters`, `dateFilters`, `mathFilters`, `yamlFilters`).
+- **Verification**:
+  - Confirmed 100% byte-for-byte parity with upstream `obsidianmd/knap` `compat/fixtures/render.json` (188 / 188 fixtures passing; 309 total tests passing).
+  - Maintained **100.00% line test coverage** (2,693 / 2,693 lines) and 0 analyzer/dartdoc issues.
+
 ## 2026.10.17
 
 - **Architecture & Maintainability Refactoring**:

@@ -36,7 +36,7 @@ Add `knap` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  knap: ^2026.10.17
+  knap: ^2026.11.23
 ```
 
 Then run:

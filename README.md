@@ -49,7 +49,7 @@ Add `knap` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  knap: ^2026.10.17
+  knap: ^2026.11.23
 ```
 
 ```dart
@@ -111,7 +111,7 @@ Add `flutter_knap` to your `pubspec.yaml`:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_knap: ^2026.10.17
+  flutter_knap: ^2026.11.23
 ```
 
 ```dart
